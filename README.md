@@ -104,9 +104,32 @@ Open Remote Desktop Connection (`mstsc`) and connect to:
 ├── cek-status.ps1           # Windows: System verification script
 ├── setup-linux.sh           # Linux: Universal multi-distro setup script
 ├── cek-status.sh            # Linux: System verification script
+├── install.ps1              # Windows: 1-Line Web Terminal Installer
+├── install.sh               # Linux: 1-Line Web Terminal Installer
 ├── tailscale-key.txt.example# Example auth key template
 ├── .gitignore               # Keeps secrets and logs safe from git
-└── README.md                # Documentation
+├── README.md                # Documentation
+└── Uninstall/               # Folder Clean Uninstaller
+    ├── 1-KLIK-UNINSTALL.bat # Windows: 1-Click uninstaller
+    ├── uninstall.ps1        # Windows: Master uninstaller script
+    └── uninstall.sh         # Linux: Master uninstaller script
+```
+
+---
+
+## 🗑️ Clean Uninstaller (Windows & Linux)
+
+Ingin menghapus seluruh konfigurasi remote server dan mengembalikan sistem ke kondisi awal? Cukup copy-paste 1-line command uninstaller ini:
+
+### 🪟 Windows (PowerShell Administrator):
+```powershell
+irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Uninstall/uninstall.ps1 | iex
+```
+*(Atau double-click file `Uninstall/1-KLIK-UNINSTALL.bat`).*
+
+### 🐧 Linux (Ubuntu / Debian / CentOS / Fedora / Arch):
+```bash
+curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Uninstall/uninstall.sh | bash
 ```
 
 ---
