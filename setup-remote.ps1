@@ -106,11 +106,13 @@ Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" 
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "Tailscale" -ErrorAction SilentlyContinue
 Stop-Process -Name "tailscale-ipn" -Force -ErrorAction SilentlyContinue
 
-# Login Tailscale via Auth Key
+# Login Tailscale via Auth Key (Hardening File Permissions)
 $keyFile = Join-Path $dir "tailscale-key.txt"
 $authKey = ""
 
 if (Test-Path $keyFile) {
+    # Kunci izin file tailscale-key.txt agar hanya SYSTEM dan Administrator yang bisa membaca
+    icacls.exe $keyFile /inheritance:r /grant:r "SYSTEM:F" "BUILTIN\Administrators:F" /c /q 2>$null | Out-Null
     $found = Get-Content $keyFile | Where-Object { $_ -match "tskey-auth" } | Select-Object -First 1
     if ($found) { $authKey = $found.Trim() }
 }
@@ -131,13 +133,15 @@ if ($authKey -and (Test-Path $tsCli)) {
 }
 
 # ==============================================================================
-# TAHAP 2: REMOTE DESKTOP (RDP)
+# TAHAP 2: REMOTE DESKTOP (RDP) - HARDENED NLA & HIGH ENCRYPTION
 # ==============================================================================
-Log "`n>>> [2/4] Mengaktifkan Remote Desktop (RDP)..." "Cyan"
+Log "`n>>> [2/4] Mengaktifkan Remote Desktop (RDP) dengan NLA Hardening..." "Cyan"
 try {
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1 -Force
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "MinEncryptionLevel" -Value 3 -Force
     Enable-NetFirewallRule -DisplayGroup "Remote Desktop" | Out-Null
-    Log "  [OK] Remote Desktop Aktif & Port 3389 Terbuka." "Green"
+    Log "  [OK] Remote Desktop Aktif, NLA Terkunci & Port 3389 Terbuka." "Green"
 } catch {
     Log "  [FAIL] Gagal konfigurasi RDP: $_" "Red"
 }
@@ -204,6 +208,16 @@ try {
         icacls.exe $sshData /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "BUILTIN\Administrators:(OI)(CI)F" /c /q | Out-Null
         Get-ChildItem -Path $sshData -Filter "ssh_host_*_key" -ErrorAction SilentlyContinue | ForEach-Object {
             icacls.exe $_.FullName /inheritance:r /grant:r "SYSTEM:F" "BUILTIN\Administrators:F" /c /q | Out-Null
+        }
+
+        # HARDENING SSH CONFIG: Cegah brute force dan putus dead sessions
+        $sshdConfigFile = "$sshData\sshd_config"
+        if (Test-Path $sshdConfigFile) {
+            $cfg = Get-Content $sshdConfigFile -Raw
+            if ($cfg -notmatch "MaxAuthTries") {
+                Add-Content -Path $sshdConfigFile -Value "`n# Security Hardening`nMaxAuthTries 4`nLoginGraceTime 30`nClientAliveInterval 300`nClientAliveCountMax 2"
+            }
+            icacls.exe $sshdConfigFile /inheritance:r /grant:r "SYSTEM:F" "BUILTIN\Administrators:F" /c /q | Out-Null
         }
     }
 

@@ -138,13 +138,15 @@ if ($authKey) {
 }
 
 # ==============================================================================
-# TAHAP 2: REMOTE DESKTOP (RDP)
+# TAHAP 2: REMOTE DESKTOP (RDP) - HARDENED NLA & HIGH ENCRYPTION
 # ==============================================================================
-Write-Host "`n>>> [2/4] Mengaktifkan Remote Desktop (RDP)..." -ForegroundColor Cyan
+Write-Host "`n>>> [2/4] Mengaktifkan Remote Desktop (RDP) dengan NLA Hardening..." -ForegroundColor Cyan
 try {
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1 -Force
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "MinEncryptionLevel" -Value 3 -Force
     Enable-NetFirewallRule -DisplayGroup "Remote Desktop" | Out-Null
-    Write-Host "  [OK] Remote Desktop Aktif (Port 3389 Terbuka)." -ForegroundColor Green
+    Write-Host "  [OK] Remote Desktop Aktif, NLA Terkunci & Port 3389 Terbuka." -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] Gagal konfigurasi RDP: $_" -ForegroundColor Red
 }
@@ -206,6 +208,16 @@ try {
         icacls.exe $sshData /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "BUILTIN\Administrators:(OI)(CI)F" /c /q | Out-Null
         Get-ChildItem -Path $sshData -Filter "ssh_host_*_key" -ErrorAction SilentlyContinue | ForEach-Object {
             icacls.exe $_.FullName /inheritance:r /grant:r "SYSTEM:F" "BUILTIN\Administrators:F" /c /q | Out-Null
+        }
+
+        # HARDENING SSH CONFIG: Cegah brute force dan putus dead sessions
+        $sshdConfigFile = "$sshData\sshd_config"
+        if (Test-Path $sshdConfigFile) {
+            $cfg = Get-Content $sshdConfigFile -Raw
+            if ($cfg -notmatch "MaxAuthTries") {
+                Add-Content -Path $sshdConfigFile -Value "`n# Security Hardening`nMaxAuthTries 4`nLoginGraceTime 30`nClientAliveInterval 300`nClientAliveCountMax 2"
+            }
+            icacls.exe $sshdConfigFile /inheritance:r /grant:r "SYSTEM:F" "BUILTIN\Administrators:F" /c /q | Out-Null
         }
     }
 

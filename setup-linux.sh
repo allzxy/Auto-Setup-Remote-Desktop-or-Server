@@ -87,10 +87,18 @@ else
     SSH_SERVICE="sshd"
 fi
 
+# Hardening SSH Config: Batasi Brute Force & Zombie Connections
+SSHD_CONFIG="/etc/ssh/sshd_config"
+if [ -f "$SSHD_CONFIG" ]; then
+    grep -q "^MaxAuthTries" "$SSHD_CONFIG" && sed -i 's/^MaxAuthTries.*/MaxAuthTries 4/' "$SSHD_CONFIG" || echo "MaxAuthTries 4" >> "$SSHD_CONFIG"
+    grep -q "^LoginGraceTime" "$SSHD_CONFIG" && sed -i 's/^LoginGraceTime.*/LoginGraceTime 30/' "$SSHD_CONFIG" || echo "LoginGraceTime 30" >> "$SSHD_CONFIG"
+    grep -q "^ClientAliveInterval" "$SSHD_CONFIG" && sed -i 's/^ClientAliveInterval.*/ClientAliveInterval 300/' "$SSHD_CONFIG" || echo "ClientAliveInterval 300" >> "$SSHD_CONFIG"
+fi
+
 # Aktifkan dan jalankan OpenSSH
 systemctl enable "$SSH_SERVICE" 2>/dev/null || true
 systemctl restart "$SSH_SERVICE" 2>/dev/null || systemctl start "$SSH_SERVICE" 2>/dev/null || true
-log "\e[32m  [OK] OpenSSH Server Aktif dan Berjalan.\e[0m"
+log "\e[32m  [OK] OpenSSH Server Aktif, Hardened & Berjalan.\e[0m"
 
 # Buka firewall port 22 jika ada ufw atau firewalld
 if command -v ufw >/dev/null 2>&1; then
@@ -121,6 +129,7 @@ KEY_FILE="$SCRIPT_DIR/tailscale-key.txt"
 AUTH_KEY=""
 
 if [ -f "$KEY_FILE" ]; then
+    chmod 600 "$KEY_FILE" 2>/dev/null || true
     AUTH_KEY=$(grep -v "^#" "$KEY_FILE" | grep "tskey-auth" | head -n 1 | tr -d '\r\n ')
 fi
 
