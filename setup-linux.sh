@@ -57,6 +57,9 @@ if [ -t 0 ]; then
                 echo -e "  \e[32m[OK] User '$SSH_USER' berhasil dibuat & diberi hak akses sudo!\e[0m"
             fi
         fi
+    else
+        usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
+        echo -e "  \e[32m[OK] User '$SSH_USER' dipastikan memiliki akses root/sudo!\e[0m"
     fi
 else
     CUSTOM_HOST="$DEFAULT_HOST"

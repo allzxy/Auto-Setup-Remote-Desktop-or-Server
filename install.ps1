@@ -70,7 +70,16 @@ if ($sshUser -ne $defaultUser) {
                 Write-Host "  [OK] User '$sshUser' berhasil dibuat & diberi hak akses Administrator/RDP!" -ForegroundColor Green
             }
         }
+    } else {
+        # Pastikan user yang sudah ada WAJIB punya hak Administrator & RDP
+        net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
+        net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
+        Write-Host "  [OK] User '$sshUser' dipastikan memiliki hak akses Administrator & RDP!" -ForegroundColor Green
     }
+} else {
+    # Pastikan default user juga masuk grup Administrators & RDP
+    net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
+    net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
 }
 
 Write-Host ""
