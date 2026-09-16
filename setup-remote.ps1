@@ -9,7 +9,7 @@ $ErrorActionPreference = "SilentlyContinue"
 # Paksa TLS 1.2 & TLS 1.3
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 
-$dir = if ($PSScriptRoot) { $PSScriptRoot } else { "D:\All\Setup Server" }
+$dir = if ($PSScriptRoot) { $PSScriptRoot } else { "D:\All\Auto Setup Remote Desktop or Server" }
 $logFile = Join-Path $dir "setup-remote.log"
 
 function Log ($msg, $color = "White") {
