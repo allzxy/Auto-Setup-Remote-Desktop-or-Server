@@ -127,6 +127,10 @@ if ($allPassed) {
 
 Write-Host "================================================================`n" -ForegroundColor Cyan
 if (-not $NoWait) {
-    Write-Host "Jendela ini tidak akan ditutup otomatis agar Anda bisa melihat log di atas." -ForegroundColor Gray
-    Read-Host "Tekan tombol ENTER untuk keluar..."
+    try {
+        if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+            Write-Host "Jendela ini tidak akan ditutup otomatis agar Anda bisa melihat log di atas." -ForegroundColor Gray
+            Read-Host "Tekan tombol ENTER untuk keluar..."
+        }
+    } catch {}
 }
