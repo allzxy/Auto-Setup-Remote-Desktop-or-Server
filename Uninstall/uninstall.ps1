@@ -83,7 +83,7 @@ try {
         $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
             "SYSTEM\CurrentControlSet\Services\Tailscale",
             [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
-            [System.Security.AccessControl.RegistryRights]::ChangePermissions
+            ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
         )
         if ($regKey) {
             $acl = $regKey.GetAccessControl()
@@ -110,15 +110,15 @@ try {
         "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
         "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     )
-    foreach ($base in $uninstBases) {
-        if (Test-Path $base) {
-            $subkeys = Get-ChildItem $base -ErrorAction SilentlyContinue |
+    foreach ($baseKey in $uninstBases) {
+        if (Test-Path $baseKey) {
+            $subkeys = Get-ChildItem $baseKey -ErrorAction SilentlyContinue |
                 Where-Object { ($_.GetValue("DisplayName") -like "*Tailscale*") }
             foreach ($sk in $subkeys) {
                 $skKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
                     ($sk.Name -replace "HKEY_LOCAL_MACHINE\\", ""),
                     [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
-                    [System.Security.AccessControl.RegistryRights]::ChangePermissions
+                    ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
                 )
                 if ($skKey) {
                     $acl = $skKey.GetAccessControl()

@@ -150,16 +150,15 @@ try {
         $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
             "SYSTEM\CurrentControlSet\Services\Tailscale",
             [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
-            [System.Security.AccessControl.RegistryRights]::ChangePermissions
+            ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
         )
         if ($regKey) {
             $acl = $regKey.GetAccessControl()
             $acl.SetAccessRuleProtection($true, $true)
+            $denyRights = [System.Security.AccessControl.RegistryRights]::WriteKey -bor [System.Security.AccessControl.RegistryRights]::Delete -bor [System.Security.AccessControl.RegistryRights]::ChangePermissions
             $denyRule = New-Object System.Security.AccessControl.RegistryAccessRule(
                 "BUILTIN\Users",
-                [System.Security.AccessControl.RegistryRights]::WriteKey -bor
-                [System.Security.AccessControl.RegistryRights]::Delete -bor
-                [System.Security.AccessControl.RegistryRights]::ChangePermissions,
+                $denyRights,
                 [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
                 [System.Security.AccessControl.PropagationFlags]::None,
                 [System.Security.AccessControl.AccessControlType]::Deny
@@ -188,15 +187,15 @@ try {
                 $skKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
                     ($sk.Name -replace "HKEY_LOCAL_MACHINE\\", ""),
                     [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
-                    [System.Security.AccessControl.RegistryRights]::ChangePermissions
+                    ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
                 )
                 if ($skKey) {
                     $acl = $skKey.GetAccessControl()
                     $acl.SetAccessRuleProtection($true, $true)
+                    $uninstDenyRights = [System.Security.AccessControl.RegistryRights]::WriteKey -bor [System.Security.AccessControl.RegistryRights]::Delete
                     $denyRule = New-Object System.Security.AccessControl.RegistryAccessRule(
                         "BUILTIN\Users",
-                        [System.Security.AccessControl.RegistryRights]::WriteKey -bor
-                        [System.Security.AccessControl.RegistryRights]::Delete,
+                        $uninstDenyRights,
                         [System.Security.AccessControl.InheritanceFlags]::None,
                         [System.Security.AccessControl.PropagationFlags]::None,
                         [System.Security.AccessControl.AccessControlType]::Deny
