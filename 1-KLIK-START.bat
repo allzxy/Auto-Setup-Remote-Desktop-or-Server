@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Setup Remote Windows Server
+title Auto Setup Remote Desktop or Server
 
 :: 1. Cek hak Administrator
 net session >nul 2>&1

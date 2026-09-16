@@ -1,6 +1,6 @@
-# 🚀 Auto Remote Server Setup (Windows & Linux)
+# 🚀 Auto Setup Remote Desktop or Server (Windows & Linux)
 
-One-click automated setup to turn any **Windows** or **Linux** machine into an always-on, secure headless remote server using **OpenSSH**, **Tailscale (Mesh VPN)**, and **RDP**. Accessible from anywhere outside your local network without port-forwarding or public IP.
+One-click automated setup to turn any **Windows** or **Linux** machine into an always-on, secure remote desktop and server using **OpenSSH**, **Tailscale (Mesh VPN)**, and **RDP**. Accessible from anywhere outside your local network without port-forwarding or public IP.
 
 ---
 
@@ -22,8 +22,8 @@ Supports Windows 10, Windows 11, and Windows Server 2016/2019/2022/2025.
 
 1. Clone or download this repository:
    ```cmd
-   git clone https://github.com/your-username/remote-server-setup.git
-   cd remote-server-setup
+   git clone https://github.com/your-username/auto-setup-remote-desktop-or-server.git
+   cd auto-setup-remote-desktop-or-server
    ```
 2. Copy `tailscale-key.txt.example` to `tailscale-key.txt` and paste your [Tailscale Auth Key](https://login.tailscale.com/admin/settings/keys):
    ```cmd
@@ -40,8 +40,8 @@ Supports Ubuntu, Debian, CentOS, RHEL, Rocky Linux, AlmaLinux, Fedora, Arch, and
 
 1. Clone or download this repository:
    ```bash
-   git clone https://github.com/your-username/remote-server-setup.git
-   cd remote-server-setup
+   git clone https://github.com/your-username/auto-setup-remote-desktop-or-server.git
+   cd auto-setup-remote-desktop-or-server
    ```
 2. Copy `tailscale-key.txt.example` to `tailscale-key.txt` and insert your Tailscale Auth Key:
    ```bash

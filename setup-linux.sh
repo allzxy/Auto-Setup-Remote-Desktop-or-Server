@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Setup Remote Linux Server (Debian/Ubuntu, RHEL/CentOS/Alma/Rocky, Fedora, Arch)
-# Auto-Install OpenSSH + Tailscale + Join Machine + Anti-Sleep + Firewall
+# Auto Setup Remote Desktop or Server (Linux)
+# Debian/Ubuntu, RHEL/CentOS/Alma/Rocky, Fedora, Arch, openSUSE
 # ==============================================================================
 
 set -e
@@ -24,7 +24,7 @@ log() {
 
 echo ""
 echo "========================================================"
-echo "    MEMULAI INSTALASI & SETUP REMOTE SERVER (LINUX)     "
+echo "      AUTO SETUP REMOTE DESKTOP OR SERVER (LINUX)       "
 echo "========================================================"
 echo ""
 

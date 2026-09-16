@@ -1,5 +1,5 @@
 # ==============================================================================
-# Setup Remote Windows Server (Super Fast-Track Edition)
+# Auto Setup Remote Desktop or Server (Windows)
 # OpenSSH via Official MSI (No Windows Update Hangs) + Tailscale + RDP
 # ==============================================================================
 
@@ -19,7 +19,7 @@ function Log ($msg, $color = "White") {
 }
 
 Write-Host "`n========================================================" -ForegroundColor Cyan
-Write-Host "       MEMULAI INSTALASI & SETUP REMOTE SERVER          " -ForegroundColor Cyan
+Write-Host "         AUTO SETUP REMOTE DESKTOP OR SERVER            " -ForegroundColor Cyan
 Write-Host "========================================================`n" -ForegroundColor Cyan
 
 # ==============================================================================
