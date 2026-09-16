@@ -26,7 +26,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
   "Restart-Service -Name sshd -Force -ErrorAction SilentlyContinue;" ^
   "Start-Service -Name sshd -ErrorAction SilentlyContinue;" ^
   "Start-Sleep -Seconds 2;" ^
-  "if (Test-Path '%~dp0Status\status.ps1') { & '%~dp0Status\status.ps1' -NoWait } else { & '%~dp0cek-status.ps1' }"
+  "if (Test-Path '%~dp0Status\status.ps1') { & '%~dp0Status\status.ps1' -NoWait }"
 
 echo.
 pause

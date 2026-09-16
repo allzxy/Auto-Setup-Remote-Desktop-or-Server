@@ -143,8 +143,6 @@ echo "========================================================"
 
 if [ -f "$SCRIPT_DIR/Status/status.sh" ]; then
     bash "$SCRIPT_DIR/Status/status.sh" --no-wait
-elif [ -f "$SCRIPT_DIR/cek-status.sh" ]; then
-    bash "$SCRIPT_DIR/cek-status.sh"
 fi
 
 TS_IP=$(tailscale ip -4 2>/dev/null || echo "")

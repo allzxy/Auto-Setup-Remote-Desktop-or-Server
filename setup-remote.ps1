@@ -229,9 +229,6 @@ Write-Host "`n========================================================" -Foregro
 Write-Host "                AUDIT KELENGKAPAN SISTEM                " -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
 $statusScript = Join-Path $dir "Status\status.ps1"
-if (-not (Test-Path $statusScript)) {
-    $statusScript = Join-Path $dir "cek-status.ps1"
-}
 if (Test-Path $statusScript) {
     & $statusScript -NoWait
 }
