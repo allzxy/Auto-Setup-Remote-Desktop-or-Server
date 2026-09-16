@@ -4,9 +4,7 @@
 # irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Status/status.ps1 | iex
 # ==============================================================================
 
-param(
-    [switch]$NoWait
-)
+$NoWait = ($args -contains "-NoWait") -or ($args -contains "--no-wait") -or ($env:STATUS_NO_WAIT -eq "1")
 
 # Paksa TLS 1.2 & TLS 1.3
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
