@@ -110,6 +110,103 @@ sc.exe failureflag Tailscale 1 | Out-Null
 $svcSddl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSORC;;;AU)(A;;CCLCSORC;;;IU)"
 sc.exe sdset Tailscale $svcSddl | Out-Null
 
+# ==============================================================================
+# HARDENING ANTI-UNINSTALL: Kunci Tailscale 3 Layer
+# ==============================================================================
+Log "  [+] Mengunci Tailscale agar tidak bisa di-uninstall sembarangan..." "Yellow"
+
+# Layer 1 - File ACL: Kunci folder instalasi Tailscale
+# Hanya SYSTEM dan Administrators yang bisa modify/delete file
+$tsDir = "C:\Program Files\Tailscale"
+if (Test-Path $tsDir) {
+    try {
+        # Reset inheritance, lalu grant hanya ke SYSTEM dan BA
+        icacls.exe $tsDir /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "BUILTIN\Administrators:(OI)(CI)F" /c /q 2>$null | Out-Null
+        # Deny Delete ke semua user biasa (Authenticated Users)
+        icacls.exe $tsDir /deny "BUILTIN\Users:(OI)(CI)(DE,DC)" /c /q 2>$null | Out-Null
+        Log "  [OK] File ACL: Folder Tailscale dikunci — user biasa tidak bisa hapus file." "Green"
+    } catch {
+        Log "  [WARN] Gagal mengunci File ACL Tailscale: $_" "Yellow"
+    }
+}
+
+# Layer 2 - Registry ACL: Kunci registry service Tailscale
+# Prevent non-admin dari memodifikasi registry Tailscale
+try {
+    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tailscale"
+    if (Test-Path $regPath) {
+        $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+            "SYSTEM\CurrentControlSet\Services\Tailscale", 
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+            [System.Security.AccessControl.RegistryRights]::ChangePermissions
+        )
+        if ($regKey) {
+            $acl = $regKey.GetAccessControl()
+            # Hapus inheritance dari parent
+            $acl.SetAccessRuleProtection($true, $true)
+            # Deny write/delete ke Users biasa
+            $denyRule = New-Object System.Security.AccessControl.RegistryAccessRule(
+                "BUILTIN\Users",
+                [System.Security.AccessControl.RegistryRights]::WriteKey -bor
+                [System.Security.AccessControl.RegistryRights]::Delete -bor
+                [System.Security.AccessControl.RegistryRights]::ChangePermissions,
+                [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
+                [System.Security.AccessControl.PropagationFlags]::None,
+                [System.Security.AccessControl.AccessControlType]::Deny
+            )
+            $acl.AddAccessRule($denyRule)
+            $regKey.SetAccessControl($acl)
+            $regKey.Close()
+            Log "  [OK] Registry ACL: Registry Tailscale dikunci." "Green"
+        }
+    }
+} catch {
+    Log "  [WARN] Gagal mengunci Registry ACL Tailscale: $_" "Yellow"
+}
+
+# Layer 3 - Uninstall Key ACL: Kunci entry Add/Remove Programs Tailscale
+# Prevent user biasa dari trigger uninstall via Settings > Apps
+try {
+    $uninstKeys = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+    foreach ($baseKey in $uninstKeys) {
+        if (Test-Path $baseKey) {
+            $subkeys = Get-ChildItem $baseKey -ErrorAction SilentlyContinue | 
+                Where-Object { ($_.GetValue("DisplayName") -like "*Tailscale*") }
+            foreach ($sk in $subkeys) {
+                $skPath = $sk.PSPath -replace "Microsoft.PowerShell.Core\\Registry::", ""
+                $skKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+                    ($sk.Name -replace "HKEY_LOCAL_MACHINE\\", ""),
+                    [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+                    [System.Security.AccessControl.RegistryRights]::ChangePermissions
+                )
+                if ($skKey) {
+                    $acl = $skKey.GetAccessControl()
+                    $acl.SetAccessRuleProtection($true, $true)
+                    $denyRule = New-Object System.Security.AccessControl.RegistryAccessRule(
+                        "BUILTIN\Users",
+                        [System.Security.AccessControl.RegistryRights]::WriteKey -bor
+                        [System.Security.AccessControl.RegistryRights]::Delete,
+                        [System.Security.AccessControl.InheritanceFlags]::None,
+                        [System.Security.AccessControl.PropagationFlags]::None,
+                        [System.Security.AccessControl.AccessControlType]::Deny
+                    )
+                    $acl.AddAccessRule($denyRule)
+                    $skKey.SetAccessControl($acl)
+                    $skKey.Close()
+                }
+            }
+        }
+    }
+    Log "  [OK] Uninstall Key ACL: Entry uninstall Tailscale dikunci." "Green"
+} catch {
+    Log "  [WARN] Gagal mengunci Uninstall Key ACL: $_" "Yellow"
+}
+
+Log "  [DONE] Tailscale 3-Layer Anti-Uninstall Hardening selesai." "Cyan"
+
 # Matikan Tray GUI desktop
 Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Tailscale" -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "Tailscale" -ErrorAction SilentlyContinue
