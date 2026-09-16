@@ -1,0 +1,12 @@
+# Jangan commit credential rahasia ke GitHub
+tailscale-key.txt
+
+# Log dan file temporary
+*.log
+*.tmp
+*.msi
+*.exe
+
+# Windows temporary / thumbs
+Thumbs.db
+Desktop.ini

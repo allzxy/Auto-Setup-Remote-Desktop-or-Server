@@ -1,0 +1,4 @@
+# Rename file ini menjadi "tailscale-key.txt"
+# Lalu ganti baris di bawah dengan Auth Key Tailscale lu:
+# (Generate di: https://login.tailscale.com/admin/settings/keys)
+tskey-auth-kxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
