@@ -1,16 +1,24 @@
 # ==============================================================================
-# Remote Server Requirement & Health Check
+# Auto Setup Remote Desktop or Server - Health & Status Audit (Windows)
+# Run via terminal:
+# irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Status/status.ps1 | iex
 # ==============================================================================
 
-$statusScript = Join-Path $PSScriptRoot "Status\status.ps1"
-if (Test-Path $statusScript) {
-    & $statusScript @args
-    exit $LASTEXITCODE
-}
+param(
+    [switch]$NoWait
+)
 
-Write-Host "`n========================================================" -ForegroundColor Cyan
-Write-Host "         AUDIT STATUS REMOTE SERVER & REQUIREMENT        " -ForegroundColor Cyan
-Write-Host "========================================================`n" -ForegroundColor Cyan
+# Paksa TLS 1.2 & TLS 1.3
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+
+if (-not $NoWait) {
+    Clear-Host
+}
+Write-Host ""
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host "        AUDIT STATUS REMOTE SERVER & REQUIREMENT (WINDOWS)      " -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host ""
 
 $allPassed = $true
 
@@ -45,13 +53,20 @@ $tsServiceRunning = ($tsService -and $tsService.Status -eq "Running")
 Print-Status "Tailscale App" $tsAppInstalled $(if ($tsAppInstalled) { "Terinstall di $tsCli" } else { "Belum Terinstall" })
 Print-Status "Tailscale Service" $tsServiceRunning $(if ($tsServiceRunning) { "Service Berjalan di Background" } else { "Service Berhenti" })
 
-# 3. Cek Koneksi Tailscale Network (IP Machine)
+# 3. Cek Koneksi Tailscale Network (IP Machine & Hostname)
 $tsIp = ""
 $tsConnected = $false
+$tsHostname = $env:COMPUTERNAME.ToLower()
+
 if ($tsAppInstalled) {
     $tsIp = (& $tsCli ip -4 2>$null)
     if ($tsIp -and $tsIp -match "^\d+\.\d+\.\d+\.\d+$") {
         $tsConnected = $true
+        # Cek self hostname dari status
+        $statusJson = (& $tsCli status --json 2>$null | ConvertFrom-Json 2>$null)
+        if ($statusJson -and $statusJson.Self -and $statusJson.Self.HostName) {
+            $tsHostname = $statusJson.Self.HostName
+        }
     }
 }
 Print-Status "Tailscale Mesh Network" $tsConnected $(if ($tsConnected) { "Terhubung! IP Mesin: $tsIp" } else { "Belum Login / Belum Konek" })
@@ -82,18 +97,36 @@ $powerAc = powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE 2>$null | Select
 $antiSleepOk = ($powerAc -eq "0x00000000" -or $powerAc -eq "0")
 Print-Status "Anti-Sleep Mode" $antiSleepOk $(if ($antiSleepOk) { "Aktif (Server Tidak Akan Sleep)" } else { "Masih Bisa Sleep" })
 
-Write-Host "`n--------------------------------------------------------" -ForegroundColor Gray
+Write-Host "`n----------------------------------------------------------------" -ForegroundColor Gray
 
 if ($allPassed) {
     Write-Host "STATUS KESELURUHAN: SEMPURNA (SIAP DI-REMOTE 24/7)" -ForegroundColor Green
+    
     if ($tsIp) {
-        Write-Host "`nCara Remote dari Luar Jaringan:" -ForegroundColor Yellow
-        Write-Host "  1. SSH : ssh $env:USERNAME@$tsIp" -ForegroundColor White
-        Write-Host "  2. RDP : Hubungkan ke $tsIp" -ForegroundColor White
+        Write-Host ""
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host "               DATA KONEKSI UNTUK APLIKASI TERMIUS              " -ForegroundColor Cyan
+        Write-Host "================================================================" -ForegroundColor Cyan
+        Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  Label / Alias : $tsHostname" -ForegroundColor Yellow
+        Write-Host "  Hostname / IP : $tsIp" -ForegroundColor Yellow
+        Write-Host "  Port          : 22" -ForegroundColor Yellow
+        Write-Host "  Username      : $env:USERNAME" -ForegroundColor Yellow
+        Write-Host "  Password      : (Password login Windows akun Anda)" -ForegroundColor Yellow
+        Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
+        Write-Host "  Quick SSH CLI : ssh $env:USERNAME@$tsIp" -ForegroundColor Cyan
+        Write-Host "  Remote Desktop: Buka RDP -> Hubungkan ke $tsIp" -ForegroundColor Cyan
+        Write-Host "================================================================" -ForegroundColor Cyan
     }
 } else {
     Write-Host "STATUS KESELURUHAN: MASIH ADA YANG KURANG" -ForegroundColor Yellow
-    Write-Host "Jalankan '1-KLIK-START.bat' sekali lagi untuk memperbaiki komponen yang [FAIL]." -ForegroundColor Yellow
+    Write-Host "Jalankan installer sekali lagi untuk memperbaiki komponen yang [FAIL]:" -ForegroundColor Yellow
+    Write-Host "  irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.ps1 | iex" -ForegroundColor White
 }
 
-Write-Host "========================================================`n" -ForegroundColor Cyan
+Write-Host "================================================================`n" -ForegroundColor Cyan
+if (-not $NoWait) {
+    Write-Host "Jendela ini tidak akan ditutup otomatis agar Anda bisa melihat log di atas." -ForegroundColor Gray
+    Read-Host "Tekan tombol ENTER untuk keluar..."
+}

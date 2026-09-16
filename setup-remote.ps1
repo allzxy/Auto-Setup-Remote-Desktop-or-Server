@@ -228,8 +228,13 @@ try {
 Write-Host "`n========================================================" -ForegroundColor Cyan
 Write-Host "                AUDIT KELENGKAPAN SISTEM                " -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
-
-& (Join-Path $dir "cek-status.ps1")
+$statusScript = Join-Path $dir "Status\status.ps1"
+if (-not (Test-Path $statusScript)) {
+    $statusScript = Join-Path $dir "cek-status.ps1"
+}
+if (Test-Path $statusScript) {
+    & $statusScript -NoWait
+}
 
 $finalIp = (& $tsCli ip -4 2>$null)
 $machineName = $env:COMPUTERNAME

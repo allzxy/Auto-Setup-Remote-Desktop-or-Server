@@ -34,6 +34,22 @@ curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or
 
 ---
 
+## 📊 Instant 1-Line Status Check (Audit Server)
+
+Mau cek apakah server aktif, IP Tailscale, port 22/3389 terbuka, atau butuh data kartu login Termius tanpa download repo? Cukup jalankan:
+
+### 🪟 Windows (PowerShell):
+```powershell
+irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Status/status.ps1 | iex
+```
+
+### 🐧 Linux:
+```bash
+curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Status/status.sh | bash
+```
+
+---
+
 ## 🖥️ Manual Offline Start: Windows Server
 
 Supports Windows 10, Windows 11, and Windows Server 2016/2019/2022/2025.
@@ -48,7 +64,7 @@ Supports Windows 10, Windows 11, and Windows Server 2016/2019/2022/2025.
    copy tailscale-key.txt.example tailscale-key.txt
    ```
 3. Double-click **`1-KLIK-START.bat`** and click **Yes** on the UAC prompt.
-4. Done! To check status anytime, double-click **`CEK-STATUS.bat`**.
+4. Done! To check status anytime, double-click **`Status/1-KLIK-STATUS.bat`** (atau **`CEK-STATUS.bat`**).
 
 ---
 
@@ -72,7 +88,7 @@ Supports Ubuntu, Debian, CentOS, RHEL, Rocky Linux, AlmaLinux, Fedora, Arch, and
    ```
 4. Done! To verify health anytime:
    ```bash
-   bash cek-status.sh
+   bash Status/status.sh
    ```
 
 ---
@@ -99,17 +115,19 @@ Open Remote Desktop Connection (`mstsc`) and connect to:
 ```text
 ├── 1-KLIK-START.bat         # Windows: 1-Click launcher with auto-elevation
 ├── 1-KLIK-START.vbs         # Windows: Background silent launcher
-├── CEK-STATUS.bat           # Windows: 1-Click health audit dashboard
+├── CEK-STATUS.bat           # Windows: 1-Click health audit dashboard (legacy shortcut)
 ├── FIX-OPENSSH.bat          # Windows: Quick ACL permission repair tool
 ├── setup-remote.ps1         # Windows: Master PowerShell automation script
-├── cek-status.ps1           # Windows: System verification script
 ├── setup-linux.sh           # Linux: Universal multi-distro setup script
-├── cek-status.sh            # Linux: System verification script
 ├── install.ps1              # Windows: 1-Line Web Terminal Installer
 ├── install.sh               # Linux: 1-Line Web Terminal Installer
 ├── tailscale-key.txt.example# Example auth key template
 ├── .gitignore               # Keeps secrets and logs safe from git
 ├── README.md                # Documentation
+├── Status/                  # Dedicated Status & Health Audit Suite
+│   ├── 1-KLIK-STATUS.bat    # Windows: 1-Click status check launcher
+│   ├── status.ps1           # Windows: Master status audit & Termius card script
+│   └── status.sh            # Linux: Master status audit & Termius card script
 └── Uninstall/               # Folder Clean Uninstaller
     ├── 1-KLIK-UNINSTALL.bat # Windows: 1-Click uninstaller
     ├── uninstall.ps1        # Windows: Master uninstaller script

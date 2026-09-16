@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Linux Server Requirement & Health Check
+# Auto Setup Remote Desktop or Server - Health & Status Audit (Linux)
+# Run via terminal:
+# curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Status/status.sh | bash
 # ==============================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/Status/status.sh" ]; then
-    bash "$SCRIPT_DIR/Status/status.sh" "$@"
-    exit $?
-fi
+NO_WAIT=false
+for arg in "$@"; do
+    if [ "$arg" = "--no-wait" ]; then
+        NO_WAIT=true
+    fi
+done
 
+if [ "$NO_WAIT" = false ]; then
+    clear
+fi
 echo ""
-echo "========================================================"
-echo "         AUDIT STATUS REMOTE SERVER & REQUIREMENT        "
-echo "========================================================"
+echo "================================================================"
+echo "        AUDIT STATUS REMOTE SERVER & REQUIREMENT (LINUX)        "
+echo "================================================================"
 echo ""
 
 all_passed=true
@@ -50,8 +56,10 @@ else
     print_status "Tailscale Service" false "Service Berhenti"
 fi
 
-# 3. Tailscale IP
+# 3. Tailscale IP & Hostname
 TS_IP=$(tailscale ip -4 2>/dev/null || echo "")
+TS_HOST=$(hostname 2>/dev/null || echo "linux-server")
+
 if [[ "$TS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     print_status "Tailscale Mesh Network" true "Terhubung! IP Mesin: $TS_IP"
 else
@@ -79,18 +87,34 @@ else
 fi
 
 echo ""
-echo "--------------------------------------------------------"
+echo "----------------------------------------------------------------"
 
 if [ "$all_passed" = true ]; then
     echo -e "\e[32mSTATUS KESELURUHAN: SEMPURNA (SIAP DI-REMOTE 24/7)\e[0m"
     if [ -n "$TS_IP" ]; then
-        echo -e "\n\e[33mCara Remote dari Luar Jaringan:\e[0m"
-        echo -e "  SSH : ssh $USER@$TS_IP"
+        echo ""
+        echo "================================================================"
+        echo -e "\e[36m               DATA KONEKSI UNTUK APLIKASI TERMIUS              \e[0m"
+        echo "================================================================"
+        echo "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:"
+        echo ""
+        echo -e "  Label / Alias : \e[33m$TS_HOST\e[0m"
+        echo -e "  Hostname / IP : \e[33m$TS_IP\e[0m"
+        echo -e "  Port          : \e[33m22\e[0m"
+        echo -e "  Username      : \e[33m$USER\e[0m"
+        echo -e "  Password      : \e[33m(Password akun $USER Anda)\e[0m"
+        echo "----------------------------------------------------------------"
+        echo -e "  Quick SSH CLI : \e[36mssh $USER@$TS_IP\e[0m"
+        echo "================================================================"
     fi
 else
     echo -e "\e[33mSTATUS KESELURUHAN: MASIH ADA YANG KURANG\e[0m"
-    echo -e "Jalankan 'sudo bash setup-linux.sh' sekali lagi."
+    echo -e "Jalankan installer sekali lagi:"
+    echo -e "  curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.sh | bash"
 fi
 
-echo "========================================================"
-echo ""
+if [ "$NO_WAIT" = false ]; then
+    echo ""
+    echo -e "\e[90mJendela tidak akan ditutup otomatis agar Anda bisa melihat log di atas.\e[0m"
+    read -p "Tekan tombol ENTER untuk keluar..." _ < /dev/tty || true
+fi

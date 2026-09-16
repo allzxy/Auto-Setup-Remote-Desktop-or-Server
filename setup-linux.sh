@@ -141,7 +141,9 @@ echo "========================================================"
 echo "                AUDIT KELENGKAPAN SISTEM                "
 echo "========================================================"
 
-if [ -f "$SCRIPT_DIR/cek-status.sh" ]; then
+if [ -f "$SCRIPT_DIR/Status/status.sh" ]; then
+    bash "$SCRIPT_DIR/Status/status.sh" --no-wait
+elif [ -f "$SCRIPT_DIR/cek-status.sh" ]; then
     bash "$SCRIPT_DIR/cek-status.sh"
 fi
 

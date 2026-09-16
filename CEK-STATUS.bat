@@ -1,7 +1,11 @@
 @echo off
 setlocal
 title Audit Status Remote Server
-powershell.exe -ExecutionPolicy Bypass -NoProfile -File "%~dp0cek-status.ps1"
-echo.
-pause
+if exist "%~dp0Status\status.ps1" (
+    powershell.exe -ExecutionPolicy Bypass -NoProfile -File "%~dp0Status\status.ps1"
+) else (
+    powershell.exe -ExecutionPolicy Bypass -NoProfile -File "%~dp0cek-status.ps1"
+    echo.
+    pause
+)
 exit
