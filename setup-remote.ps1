@@ -245,6 +245,7 @@ try {
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1 -Force
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "MinEncryptionLevel" -Value 3 -Force
     Enable-NetFirewallRule -DisplayGroup "Remote Desktop" | Out-Null
+    Set-NetFirewallRule -DisplayGroup "Remote Desktop" -Profile Any -ErrorAction SilentlyContinue | Out-Null
     Log "  [OK] Remote Desktop Aktif, NLA Terkunci & Port 3389 Terbuka." "Green"
 } catch {
     Log "  [FAIL] Gagal konfigurasi RDP: $_" "Red"
@@ -314,12 +315,12 @@ try {
             icacls.exe $_.FullName /inheritance:r /grant:r "SYSTEM:F" "BUILTIN\Administrators:F" /c /q | Out-Null
         }
 
-        # HARDENING SSH CONFIG: Cegah brute force dan putus dead sessions
+        # HARDENING SSH CONFIG: Cegah brute force, putus dead sessions, dan matikan reverse DNS hang
         $sshdConfigFile = "$sshData\sshd_config"
         if (Test-Path $sshdConfigFile) {
             $cfg = Get-Content $sshdConfigFile -Raw
-            if ($cfg -notmatch "MaxAuthTries") {
-                Add-Content -Path $sshdConfigFile -Value "`n# Security Hardening`nMaxAuthTries 4`nLoginGraceTime 30`nClientAliveInterval 300`nClientAliveCountMax 2"
+            if ($cfg -notmatch "UseDNS") {
+                Add-Content -Path $sshdConfigFile -Value "`n# Security & Performance Tuning`nMaxAuthTries 4`nLoginGraceTime 30`nClientAliveInterval 300`nClientAliveCountMax 2`nUseDNS no`n"
             }
             icacls.exe $sshdConfigFile /inheritance:r /grant:r "SYSTEM:F" "BUILTIN\Administrators:F" /c /q | Out-Null
         }
@@ -335,17 +336,21 @@ try {
     # Hardening Service ACL: Kunci agar user non-admin tidak bisa Stop/Pause/Hapus sshd
     sc.exe sdset sshd $svcSddl | Out-Null
 
-    # Firewall Port 22
+    # Firewall Port 22 - Wajib Profile Any (karena adapter Tailscale dianggap 'Public' oleh Windows)
     if (!(Get-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyContinue)) {
         New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH SSH Server (sshd)' `
-            -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 | Out-Null
+            -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 -Profile Any | Out-Null
     } else {
         Enable-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyContinue | Out-Null
+        Set-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -Profile Any -ErrorAction SilentlyContinue | Out-Null
     }
 
-    # Set PowerShell default shell
+    # Set PowerShell default shell (pastikan key registry ada)
+    if (!(Test-Path "HKLM:\SOFTWARE\OpenSSH")) {
+        New-Item -Path "HKLM:\SOFTWARE\OpenSSH" -Force -ErrorAction SilentlyContinue | Out-Null
+    }
     New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell `
-        -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force | Out-Null
+        -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force -ErrorAction SilentlyContinue | Out-Null
 
     Log "  [OK] OpenSSH Server Aktif & Port 22 Terbuka." "Green"
 

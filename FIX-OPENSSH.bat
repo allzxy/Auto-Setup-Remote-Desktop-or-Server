@@ -21,7 +21,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
   "  Get-ChildItem -Path $sshData -Filter 'ssh_host_*_key' | ForEach-Object {" ^
   "    icacls.exe $_.FullName /inheritance:r /grant:r 'SYSTEM:F' 'BUILTIN\Administrators:F' /c /q | Out-Null;" ^
   "  };" ^
+  "  $cfg = \"$sshData\sshd_config\";" ^
+  "  if (Test-Path $cfg) {" ^
+  "    $c = Get-Content $cfg -Raw;" ^
+  "    if ($c -notmatch 'UseDNS') { Add-Content $cfg \"`nUseDNS no`n\" };" ^
+  "  };" ^
   "};" ^
+  "Set-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -Profile Any -ErrorAction SilentlyContinue | Out-Null;" ^
   "Set-Service -Name sshd -StartupType Automatic -ErrorAction SilentlyContinue;" ^
   "Restart-Service -Name sshd -Force -ErrorAction SilentlyContinue;" ^
   "Start-Service -Name sshd -ErrorAction SilentlyContinue;" ^
