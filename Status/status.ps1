@@ -97,6 +97,11 @@ $powerAc = powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE 2>$null | Select
 $antiSleepOk = ($powerAc -eq "0x00000000" -or $powerAc -eq "0")
 Print-Status "Anti-Sleep Mode" $antiSleepOk $(if ($antiSleepOk) { "Aktif (Server Tidak Akan Sleep)" } else { "Masih Bisa Sleep" })
 
+# 8. Cek Resiliensi & Watchdog Auto-Restart
+$watchdogTask = Get-ScheduledTask -TaskName "RemoteServerKeepAlive" -ErrorAction SilentlyContinue
+$watchdogOk = [bool]$watchdogTask
+Print-Status "Resiliensi Watchdog" $watchdogOk $(if ($watchdogOk) { "Aktif (Auto-Heal tiap 15 mnt)" } else { "Belum Terpasang" })
+
 Write-Host "`n----------------------------------------------------------------" -ForegroundColor Gray
 
 if ($allPassed) {

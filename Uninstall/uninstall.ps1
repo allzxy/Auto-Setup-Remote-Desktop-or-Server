@@ -176,5 +176,9 @@ Write-Host "----------------------------------------------------------------" -F
 Write-Host "  Status Sistem: Komputer Anda telah kembali ke kondisi awal." -ForegroundColor White
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Jendela tidak akan ditutup otomatis agar Anda bisa melihat log di atas." -ForegroundColor Gray
-Read-Host "Tekan tombol ENTER untuk keluar..."
+try {
+    if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+        Write-Host "Jendela tidak akan ditutup otomatis agar Anda bisa melihat log di atas." -ForegroundColor Gray
+        Read-Host "Tekan tombol ENTER untuk keluar..."
+    }
+} catch {}

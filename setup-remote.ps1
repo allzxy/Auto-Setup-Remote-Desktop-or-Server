@@ -91,10 +91,15 @@ if (!(Test-Path $tsCli)) {
     }
 }
 
-# Pastikan service berjalan
+# Pastikan service berjalan & atur Resiliensi Auto-Restart
 Set-Service -Name "Tailscale" -StartupType 'Automatic' -ErrorAction SilentlyContinue
 Start-Service -Name "Tailscale" -ErrorAction SilentlyContinue
 sc.exe failure Tailscale reset= 86400 actions= restart/5000/restart/10000/restart/60000 | Out-Null
+sc.exe failureflag Tailscale 1 | Out-Null
+
+# Hardening Service ACL: Kunci agar user non-admin tidak bisa Stop/Pause/Hapus service
+$svcSddl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSORC;;;AU)(A;;CCLCSORC;;;IU)"
+sc.exe sdset Tailscale $svcSddl | Out-Null
 
 # Matikan Tray GUI desktop
 Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "Tailscale" -ErrorAction SilentlyContinue
@@ -202,11 +207,15 @@ try {
         }
     }
 
-    # Set service auto-start dan start service
+    # Set service auto-start, start service, dan resiliensi auto-restart
     Set-Service -Name sshd -StartupType 'Automatic' -ErrorAction SilentlyContinue
     Restart-Service -Name sshd -Force -ErrorAction SilentlyContinue
     Start-Service -Name sshd -ErrorAction SilentlyContinue
     sc.exe failure sshd reset= 86400 actions= restart/5000/restart/10000/restart/60000 | Out-Null
+    sc.exe failureflag sshd 1 | Out-Null
+
+    # Hardening Service ACL: Kunci agar user non-admin tidak bisa Stop/Pause/Hapus sshd
+    sc.exe sdset sshd $svcSddl | Out-Null
 
     # Firewall Port 22
     if (!(Get-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyContinue)) {
@@ -221,6 +230,18 @@ try {
         -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force | Out-Null
 
     Log "  [OK] OpenSSH Server Aktif & Port 22 Terbuka." "Green"
+
+    # Pasang Watchdog Task Scheduler (Auto-heal tiap 15 menit jika service mati)
+    try {
+        $watchdogCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command `"Get-Service -Name Tailscale,sshd -ErrorAction SilentlyContinue | Where-Object { `$_.Status -ne 'Running' } | Start-Service`""
+        $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c $watchdogCmd"
+        $triggerStartup = New-ScheduledTaskTrigger -AtStartup
+        $triggerRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
+        $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName "RemoteServerKeepAlive" -Action $action -Trigger @($triggerStartup, $triggerRepeat) -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue | Out-Null
+        Log "  [OK] Watchdog Resiliensi 'RemoteServerKeepAlive' Aktif (Cek tiap 15 mnt)." "Green"
+    } catch {}
 } catch {
     Log "  [Catatan OpenSSH] $_" "Yellow"
 }
@@ -253,5 +274,9 @@ if ($finalIp) {
     Write-Host "================================================================" -ForegroundColor Cyan
 }
 
-Write-Host "`nJendela tidak akan ditutup otomatis agar Anda bisa menyalin data di atas." -ForegroundColor Gray
-Read-Host "Tekan tombol ENTER untuk keluar..."
+try {
+    if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+        Write-Host "`nJendela tidak akan ditutup otomatis agar Anda bisa menyalin data di atas." -ForegroundColor Gray
+        Read-Host "Tekan tombol ENTER untuk keluar..."
+    }
+} catch {}
