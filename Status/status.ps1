@@ -100,6 +100,80 @@ $watchdogTask = Get-ScheduledTask -TaskName "RemoteServerKeepAlive" -ErrorAction
 $watchdogOk = [bool]$watchdogTask
 Print-Status "Resiliensi Watchdog" $watchdogOk $(if ($watchdogOk) { "Aktif (Auto-Heal tiap 15 mnt)" } else { "Belum Terpasang" })
 
+# 9. Cek Anti-Uninstall Hardening Layer 1: File ACL Tailscale
+$tsDir = "C:\Program Files\Tailscale"
+$fileAclOk = $false
+if (Test-Path $tsDir) {
+    try {
+        $acl = icacls.exe $tsDir 2>$null
+        # Cek apakah BUILTIN\Users punya DENY delete
+        $fileAclOk = ($acl | Select-String "BUILTIN\\Users.*DENY" -Quiet) -or ($acl | Select-String "Users.*Deny" -Quiet) -or ($acl | Select-String "Users.*D\)" -Quiet)
+        if (-not $fileAclOk) {
+            # Alternatif: cek inheritance dihapus & hanya SYSTEM+Admins yang punya
+            $hasUsers = $acl | Select-String "BUILTIN\\Users" | Where-Object { $_ -notmatch "DENY|Deny" }
+            $fileAclOk = -not [bool]$hasUsers
+        }
+    } catch {}
+}
+Print-Status "Anti-Uninstall: File ACL Tailscale" $fileAclOk $(if ($fileAclOk) { "Folder dikunci (Users tidak bisa hapus file)" } else { "Belum dikunci / Tailscale belum install" })
+
+# 10. Cek Anti-Uninstall Hardening Layer 2: Registry ACL Tailscale Service
+$regAclOk = $false
+try {
+    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tailscale"
+    if (Test-Path $regPath) {
+        $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+            "SYSTEM\CurrentControlSet\Services\Tailscale",
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree,
+            [System.Security.AccessControl.RegistryRights]::ReadPermissions
+        )
+        if ($regKey) {
+            $acl = $regKey.GetAccessControl()
+            $denyRules = $acl.Access | Where-Object { 
+                $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
+                $_.IdentityReference -match "Users"
+            }
+            $regAclOk = [bool]$denyRules
+            $regKey.Close()
+        }
+    }
+} catch {}
+Print-Status "Anti-Uninstall: Registry ACL Tailscale" $regAclOk $(if ($regAclOk) { "Registry dikunci (Users tidak bisa modif)" } else { "Belum dikunci / tidak ditemukan" })
+
+# 11. Cek Anti-Uninstall Hardening Layer 3: Uninstall Key ACL
+$uninstAclOk = $false
+try {
+    $uninstBases = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+    foreach ($base in $uninstBases) {
+        if (Test-Path $base) {
+            $sk = Get-ChildItem $base -ErrorAction SilentlyContinue | 
+                Where-Object { ($_.GetValue("DisplayName") -like "*Tailscale*") } | 
+                Select-Object -First 1
+            if ($sk) {
+                $skKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+                    ($sk.Name -replace "HKEY_LOCAL_MACHINE\\", ""),
+                    [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree,
+                    [System.Security.AccessControl.RegistryRights]::ReadPermissions
+                )
+                if ($skKey) {
+                    $acl = $skKey.GetAccessControl()
+                    $denyRules = $acl.Access | Where-Object {
+                        $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
+                        $_.IdentityReference -match "Users"
+                    }
+                    $uninstAclOk = [bool]$denyRules
+                    $skKey.Close()
+                    break
+                }
+            }
+        }
+    }
+} catch {}
+Print-Status "Anti-Uninstall: Uninstall Key ACL" $uninstAclOk $(if ($uninstAclOk) { "Tombol Uninstall dikunci (Users tidak bisa trigger)" } else { "Belum dikunci / tidak ditemukan" })
+
 Write-Host "`n----------------------------------------------------------------" -ForegroundColor Gray
 
 if ($allPassed) {
