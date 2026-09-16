@@ -55,6 +55,91 @@ if (Test-Path $tsCli) {
 
 Stop-Service -Name "Tailscale" -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "tailscale", "tailscale-ipn", "tailscaled" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
+# --- UNLOCK 3-LAYER ACL (wajib dilakukan sebelum uninstall) ---
+Write-Host "  - Membuka kunci Anti-Uninstall Hardening (3 Layer)..." -ForegroundColor Yellow
+
+# Unlock Layer 1: File ACL - kembalikan izin normal ke folder Tailscale
+$tsDir = "C:\Program Files\Tailscale"
+if (Test-Path $tsDir) {
+    try {
+        # Hapus deny rule untuk Users
+        icacls.exe $tsDir /remove:d "BUILTIN\Users" /t /c /q 2>$null | Out-Null
+        # Kembalikan inheritance dari parent
+        icacls.exe $tsDir /inheritance:e /c /q 2>$null | Out-Null
+        # Grant full ke Administrators & SYSTEM (agar uninstaller bisa jalan)
+        icacls.exe $tsDir /grant:r "SYSTEM:(OI)(CI)F" "BUILTIN\Administrators:(OI)(CI)F" /c /q 2>$null | Out-Null
+        Write-Host "  [OK] Unlock File ACL: Folder Tailscale dibuka." -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARN] Gagal unlock File ACL: $_" -ForegroundColor Yellow
+    }
+}
+
+# Unlock Layer 2: Registry ACL - hapus deny rule dari registry service
+try {
+    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tailscale"
+    if (Test-Path $regPath) {
+        $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+            "SYSTEM\CurrentControlSet\Services\Tailscale",
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+            [System.Security.AccessControl.RegistryRights]::ChangePermissions
+        )
+        if ($regKey) {
+            $acl = $regKey.GetAccessControl()
+            # Hapus semua Deny rule untuk Users
+            $denyRules = $acl.Access | Where-Object {
+                $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
+                $_.IdentityReference -match "Users"
+            }
+            foreach ($rule in $denyRules) { $acl.RemoveAccessRule($rule) | Out-Null }
+            # Aktifkan kembali inheritance
+            $acl.SetAccessRuleProtection($false, $true)
+            $regKey.SetAccessControl($acl)
+            $regKey.Close()
+            Write-Host "  [OK] Unlock Registry ACL: Registry Tailscale dibuka." -ForegroundColor Green
+        }
+    }
+} catch {
+    Write-Host "  [WARN] Gagal unlock Registry ACL: $_" -ForegroundColor Yellow
+}
+
+# Unlock Layer 3: Uninstall Key ACL - hapus deny rule dari entry uninstall
+try {
+    $uninstBases = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+    foreach ($base in $uninstBases) {
+        if (Test-Path $base) {
+            $subkeys = Get-ChildItem $base -ErrorAction SilentlyContinue |
+                Where-Object { ($_.GetValue("DisplayName") -like "*Tailscale*") }
+            foreach ($sk in $subkeys) {
+                $skKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+                    ($sk.Name -replace "HKEY_LOCAL_MACHINE\\", ""),
+                    [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+                    [System.Security.AccessControl.RegistryRights]::ChangePermissions
+                )
+                if ($skKey) {
+                    $acl = $skKey.GetAccessControl()
+                    $denyRules = $acl.Access | Where-Object {
+                        $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
+                        $_.IdentityReference -match "Users"
+                    }
+                    foreach ($rule in $denyRules) { $acl.RemoveAccessRule($rule) | Out-Null }
+                    $acl.SetAccessRuleProtection($false, $true)
+                    $skKey.SetAccessControl($acl)
+                    $skKey.Close()
+                }
+            }
+        }
+    }
+    Write-Host "  [OK] Unlock Uninstall Key ACL: Entry uninstall Tailscale dibuka." -ForegroundColor Green
+} catch {
+    Write-Host "  [WARN] Gagal unlock Uninstall Key ACL: $_" -ForegroundColor Yellow
+}
+
+Write-Host "  [DONE] Semua kunci ACL dibuka. Melanjutkan uninstall..." -ForegroundColor Cyan
 
 # Cari Uninstaller Tailscale di Registry
 $uninstalledTs = $false
@@ -92,7 +177,12 @@ sc.exe delete Tailscale 2>$null | Out-Null
 Remove-Item -Path "C:\Program Files\Tailscale" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$env:LocalAppData\Tailscale" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$env:ProgramData\Tailscale" -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host "  [OK] Tailscale berhasil dihapus sepenuhnya." -ForegroundColor Green
+
+# Bersihkan sisa registry Tailscale
+Remove-Item -Path "HKLM:\SOFTWARE\Tailscale IPN" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "HKCU:\SOFTWARE\Tailscale IPN" -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "  [OK] Tailscale berhasil dihapus sepenuhnya (termasuk semua kunci ACL)." -ForegroundColor Green
+
 
 # ==============================================================================
 # 2. UNINSTALL OPENSSH SERVER
@@ -165,6 +255,7 @@ Write-Host "================================================================" -F
 Write-Host "              UNINSTALL SELESAI & SISTEM BERSIH                 " -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host "  [ OK ] Tailscale Application       : Terhapus Bersih" -ForegroundColor Green
+Write-Host "  [ OK ] Tailscale Anti-Uninstall ACL : Semua Kunci Dibuka & Dibersihkan" -ForegroundColor Green
 Write-Host "  [ OK ] Tailscale Mesh Tunnel       : Terputus & Dihapus" -ForegroundColor Green
 Write-Host "  [ OK ] OpenSSH Server & Service    : Dinonaktifkan & Dihapus" -ForegroundColor Green
 Write-Host "  [ OK ] Host Keys & Config          : Dihapus dari ProgramData" -ForegroundColor Green
