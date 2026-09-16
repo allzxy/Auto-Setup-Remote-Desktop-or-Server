@@ -37,6 +37,38 @@ echo "Dapatkan Auth Key di: https://login.tailscale.com/admin/settings/keys"
 read -p "Masukkan Tailscale Auth Key (kosongkan jika mau login browser manual): " auth_key < /dev/tty
 auth_key=$(echo "$auth_key" | tr -d '\r\n ')
 
+# 3. Input Custom Hostname
+DEFAULT_HOST=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "linux-server")
+echo ""
+read -p "Masukkan Custom Hostname Tailscale [Tekan Enter untuk default: $DEFAULT_HOST]: " input_host < /dev/tty
+input_host=$(echo "$input_host" | tr -d '\r\n ')
+CUSTOM_HOST=${input_host:-$DEFAULT_HOST}
+
+# 4. Input Custom Username untuk Termius / SSH
+DEFAULT_USER=${SUDO_USER:-$USER}
+echo ""
+read -p "Masukkan Username untuk Login SSH/Termius [Tekan Enter untuk default: $DEFAULT_USER]: " input_user < /dev/tty
+input_user=$(echo "$input_user" | tr -d '\r\n ')
+SSH_USER=${input_user:-$DEFAULT_USER}
+DISPLAY_PASS="(Password akun '$SSH_USER')"
+
+# Cek apakah user ada di Linux, jika belum tawarkan buat otomatis
+if ! id "$SSH_USER" >/dev/null 2>&1; then
+    echo -e "  \e[33m[!] User '$SSH_USER' belum ada di sistem Linux ini.\e[0m"
+    read -p "      Buat user baru '$SSH_USER' sekarang secara otomatis? (y/N): " make_new < /dev/tty
+    if [[ "$make_new" =~ ^[Yy]$ ]]; then
+        read -p "      Masukkan password baru untuk user '$SSH_USER': " new_pass < /dev/tty
+        new_pass=$(echo "$new_pass" | tr -d '\r\n')
+        if [ -n "$new_pass" ]; then
+            useradd -m -s /bin/bash "$SSH_USER" 2>/dev/null || true
+            echo "$SSH_USER:$new_pass" | chpasswd 2>/dev/null || true
+            usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
+            DISPLAY_PASS="$new_pass"
+            echo -e "  \e[32m[OK] User '$SSH_USER' berhasil dibuat & diberi hak akses sudo!\e[0m"
+        fi
+    fi
+fi
+
 echo ""
 echo "----------------------------------------------------------------"
 echo "                 MEMULAI PROSES INSTALASI                       "
@@ -87,16 +119,15 @@ fi
 systemctl enable --now tailscaled 2>/dev/null || true
 
 if [ -n "$auth_key" ]; then
-    echo "Menghubungkan ke Tailscale dengan Auth Key..."
-    tailscale up --auth-key="$auth_key" --unattended --accept-routes --reset=false >/dev/null 2>&1 || true
+    echo "Menghubungkan ke Tailscale dengan Auth Key & Hostname '$CUSTOM_HOST'..."
+    tailscale up --auth-key="$auth_key" --hostname="$CUSTOM_HOST" --unattended --accept-routes --reset=false >/dev/null 2>&1 || true
     sleep 3
 else
-    echo "Login manual via Tailscale..."
-    tailscale up --accept-routes
+    echo "Login manual via Tailscale (Hostname: $CUSTOM_HOST)..."
+    tailscale up --hostname="$CUSTOM_HOST" --accept-routes
 fi
 
 FINAL_IP=$(tailscale ip -4 2>/dev/null || echo "")
-HOST_NAME=$(hostname 2>/dev/null || echo "linux-server")
 
 echo ""
 echo "================================================================"
@@ -104,7 +135,7 @@ echo -e "\e[32m              SETUP BERHASIL & SERVER SIAP DIREMOTE             \
 echo "================================================================"
 if [ -n "$FINAL_IP" ]; then
     echo -e "  Status Mesin  : \e[32mOnline di Tailscale Network\e[0m"
-    echo -e "  Nama Hostname : \e[1m$HOST_NAME\e[0m"
+    echo -e "  Hostname      : \e[1m$CUSTOM_HOST\e[0m"
     echo -e "  IP Tailscale  : \e[33m$FINAL_IP\e[0m"
     echo ""
     echo "================================================================"
@@ -112,13 +143,13 @@ if [ -n "$FINAL_IP" ]; then
     echo "================================================================"
     echo "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:"
     echo ""
-    echo -e "  Label / Alias : \e[33m$HOST_NAME\e[0m"
+    echo -e "  Label / Alias : \e[33m$CUSTOM_HOST\e[0m"
     echo -e "  Hostname / IP : \e[33m$FINAL_IP\e[0m"
     echo -e "  Port          : \e[33m22\e[0m"
-    echo -e "  Username      : \e[33m$USER\e[0m"
-    echo -e "  Password      : \e[33m(Password user $USER server Anda)\e[0m"
+    echo -e "  Username      : \e[33m$SSH_USER\e[0m"
+    echo -e "  Password      : \e[33m$DISPLAY_PASS\e[0m"
     echo "----------------------------------------------------------------"
-    echo -e "  Quick SSH CLI : \e[36mssh $USER@$FINAL_IP\e[0m"
+    echo -e "  Quick SSH CLI : \e[36mssh $SSH_USER@$FINAL_IP\e[0m"
 else
     echo "  Periksa dashboard Tailscale Anda untuk melihat IP mesin ini."
 fi

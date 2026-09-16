@@ -41,6 +41,38 @@ Write-Host "Dapatkan Auth Key di: https://login.tailscale.com/admin/settings/key
 $authKey = Read-Host "Masukkan Tailscale Auth Key (Tekan Enter jika ingin login manual lewat browser)"
 $authKey = $authKey.Trim()
 
+# 4. Input Custom Hostname
+$defaultHost = $env:COMPUTERNAME.ToLower()
+Write-Host ""
+$inputHost = Read-Host "Masukkan Custom Hostname Tailscale [Tekan Enter untuk default: $defaultHost]"
+$customHost = if ($inputHost.Trim()) { $inputHost.Trim().ToLower() } else { $defaultHost }
+
+# 5. Input Custom Username untuk Termius / SSH
+$defaultUser = $env:USERNAME
+Write-Host ""
+$inputUser = Read-Host "Masukkan Username untuk Login SSH/Termius [Tekan Enter untuk default: $defaultUser]"
+$sshUser = if ($inputUser.Trim()) { $inputUser.Trim() } else { $defaultUser }
+$displayPass = "(Password login akun '$sshUser')"
+
+# Cek apakah user sudah ada di Windows, jika belum tawarkan buat otomatis
+if ($sshUser -ne $defaultUser) {
+    $userExists = net user $sshUser 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [!] User '$sshUser' belum terdaftar di Windows ini." -ForegroundColor Yellow
+        $makeNew = Read-Host "      Buat user baru '$sshUser' sekarang secara otomatis? (Y/N)"
+        if ($makeNew.Trim().ToUpper() -eq "Y") {
+            $newPass = Read-Host "      Masukkan password baru untuk user '$sshUser'"
+            if ($newPass) {
+                net user $sshUser $newPass /add | Out-Null
+                net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
+                net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
+                $displayPass = $newPass
+                Write-Host "  [OK] User '$sshUser' berhasil dibuat & diberi hak akses Administrator/RDP!" -ForegroundColor Green
+            }
+        }
+    }
+}
+
 Write-Host ""
 Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
 Write-Host "                 MEMULAI PROSES INSTALASI                       " -ForegroundColor Cyan
@@ -86,8 +118,8 @@ Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" 
 Stop-Process -Name "tailscale-ipn" -Force -ErrorAction SilentlyContinue
 
 if ($authKey) {
-    Write-Host "Menghubungkan ke Tailscale dengan Auth Key..." -ForegroundColor Yellow
-    & $tsCli up --auth-key="$authKey" --unattended --accept-routes --reset=false 2>&1 | Out-Null
+    Write-Host "Menghubungkan ke Tailscale dengan Auth Key & Hostname '$customHost'..." -ForegroundColor Yellow
+    & $tsCli up --auth-key="$authKey" --hostname="$customHost" --unattended --accept-routes --reset=false 2>&1 | Out-Null
     Start-Sleep -Seconds 3
     $tsIp = (& $tsCli ip -4 2>$null)
     if ($tsIp) {
@@ -96,8 +128,8 @@ if ($authKey) {
         Write-Host "  [INFO] Perintah Tailscale terkirim. Cek dashboard." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  [!] Membuka login Tailscale via browser..." -ForegroundColor Yellow
-    & $tsCli up --unattended --accept-routes --reset=false
+    Write-Host "  [!] Membuka login Tailscale via browser (Hostname: $customHost)..." -ForegroundColor Yellow
+    & $tsCli up --hostname="$customHost" --unattended --accept-routes --reset=false
 }
 
 # ==============================================================================
@@ -203,7 +235,7 @@ Write-Host "================================================================" -F
 
 if ($finalIp) {
     Write-Host "  Status Mesin  : Online di Tailscale Network" -ForegroundColor Green
-    Write-Host "  Nama Komputer : $machineName" -ForegroundColor White
+    Write-Host "  Hostname      : $customHost" -ForegroundColor White
     Write-Host "  IP Tailscale  : $finalIp" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Cyan
@@ -211,13 +243,13 @@ if ($finalIp) {
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  Label / Alias : $machineName" -ForegroundColor Yellow
+    Write-Host "  Label / Alias : $customHost" -ForegroundColor Yellow
     Write-Host "  Hostname / IP : $finalIp" -ForegroundColor Yellow
     Write-Host "  Port          : 22" -ForegroundColor Yellow
-    Write-Host "  Username      : $env:USERNAME" -ForegroundColor Yellow
-    Write-Host "  Password      : (Password login Windows akun Anda)" -ForegroundColor Yellow
+    Write-Host "  Username      : $sshUser" -ForegroundColor Yellow
+    Write-Host "  Password      : $displayPass" -ForegroundColor Yellow
     Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
-    Write-Host "  Quick SSH CLI : ssh $env:USERNAME@$finalIp" -ForegroundColor Cyan
+    Write-Host "  Quick SSH CLI : ssh $sshUser@$finalIp" -ForegroundColor Cyan
     Write-Host "  Remote Desktop: Buka RDP -> Sambungkan ke $finalIp" -ForegroundColor Cyan
 } else {
     Write-Host "  [INFO] Periksa dashboard Tailscale Anda untuk melihat IP mesin ini." -ForegroundColor Yellow

@@ -22,6 +22,44 @@ Write-Host "`n========================================================" -Foregro
 Write-Host "         AUTO SETUP REMOTE DESKTOP OR SERVER            " -ForegroundColor Cyan
 Write-Host "========================================================`n" -ForegroundColor Cyan
 
+# Input Custom Hostname & Username jika interaktif
+$defaultHost = $env:COMPUTERNAME.ToLower()
+$defaultUser = $env:USERNAME
+
+if ([Environment]::UserInteractive) {
+    Write-Host ""
+    $inputHost = Read-Host "Masukkan Custom Hostname Tailscale [Tekan Enter untuk default: $defaultHost]"
+    $customHost = if ($inputHost.Trim()) { $inputHost.Trim().ToLower() } else { $defaultHost }
+
+    Write-Host ""
+    $inputUser = Read-Host "Masukkan Username untuk Login SSH/Termius [Tekan Enter untuk default: $defaultUser]"
+    $sshUser = if ($inputUser.Trim()) { $inputUser.Trim() } else { $defaultUser }
+    $displayPass = "(Password login akun '$sshUser')"
+
+    if ($sshUser -ne $defaultUser) {
+        $userExists = net user $sshUser 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  [!] User '$sshUser' belum terdaftar di Windows ini." -ForegroundColor Yellow
+            $makeNew = Read-Host "      Buat user baru '$sshUser' sekarang secara otomatis? (Y/N)"
+            if ($makeNew.Trim().ToUpper() -eq "Y") {
+                $newPass = Read-Host "      Masukkan password baru untuk user '$sshUser'"
+                if ($newPass) {
+                    net user $sshUser $newPass /add | Out-Null
+                    net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
+                    net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
+                    $displayPass = $newPass
+                    Write-Host "  [OK] User '$sshUser' berhasil dibuat & diberi hak akses Administrator/RDP!" -ForegroundColor Green
+                }
+            }
+        }
+    }
+} else {
+    $customHost = $defaultHost
+    $sshUser = $defaultUser
+    $displayPass = "(Password akun '$sshUser')"
+}
+
+Write-Host ""
 # ==============================================================================
 # TAHAP 1: TAILSCALE (PRIORITAS UTAMA - HITUNGAN DETIK TERDAFTAR DI MACHINE)
 # ==============================================================================
@@ -73,8 +111,8 @@ if (Test-Path $keyFile) {
 }
 
 if ($authKey -and (Test-Path $tsCli)) {
-    Log "Mendaftarkan server ke Tailscale network dengan Auth Key..." "Yellow"
-    & $tsCli up --auth-key="$authKey" --unattended --accept-routes --reset=false 2>&1 | Out-Null
+    Log "Mendaftarkan server ke Tailscale network (Hostname: $customHost)..." "Yellow"
+    & $tsCli up --auth-key="$authKey" --hostname="$customHost" --unattended --accept-routes --reset=false 2>&1 | Out-Null
     
     Start-Sleep -Seconds 3
     $tsIp = (& $tsCli ip -4 2>$null)
@@ -203,13 +241,13 @@ if ($finalIp) {
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  Label / Alias : $machineName" -ForegroundColor Yellow
+    Write-Host "  Label / Alias : $customHost" -ForegroundColor Yellow
     Write-Host "  Hostname / IP : $finalIp" -ForegroundColor Yellow
     Write-Host "  Port          : 22" -ForegroundColor Yellow
-    Write-Host "  Username      : $env:USERNAME" -ForegroundColor Yellow
-    Write-Host "  Password      : (Password login Windows akun Anda)" -ForegroundColor Yellow
+    Write-Host "  Username      : $sshUser" -ForegroundColor Yellow
+    Write-Host "  Password      : $displayPass" -ForegroundColor Yellow
     Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
-    Write-Host "  Quick SSH CLI : ssh $env:USERNAME@$finalIp" -ForegroundColor Cyan
+    Write-Host "  Quick SSH CLI : ssh $sshUser@$finalIp" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
 }
 
