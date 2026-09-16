@@ -192,3 +192,26 @@ Write-Host "                AUDIT KELENGKAPAN SISTEM                " -Foregroun
 Write-Host "========================================================" -ForegroundColor Cyan
 
 & (Join-Path $dir "cek-status.ps1")
+
+$finalIp = (& $tsCli ip -4 2>$null)
+$machineName = $env:COMPUTERNAME
+
+if ($finalIp) {
+    Write-Host ""
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "               DATA KONEKSI UNTUK APLIKASI TERMIUS              " -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  Label / Alias : $machineName" -ForegroundColor Yellow
+    Write-Host "  Hostname / IP : $finalIp" -ForegroundColor Yellow
+    Write-Host "  Port          : 22" -ForegroundColor Yellow
+    Write-Host "  Username      : $env:USERNAME" -ForegroundColor Yellow
+    Write-Host "  Password      : (Password login Windows akun Anda)" -ForegroundColor Yellow
+    Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
+    Write-Host "  Quick SSH CLI : ssh $env:USERNAME@$finalIp" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+}
+
+Write-Host "`nJendela tidak akan ditutup otomatis agar Anda bisa menyalin data di atas." -ForegroundColor Gray
+Read-Host "Tekan tombol ENTER untuk keluar..."

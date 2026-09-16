@@ -96,18 +96,33 @@ else
 fi
 
 FINAL_IP=$(tailscale ip -4 2>/dev/null || echo "")
+HOST_NAME=$(hostname 2>/dev/null || echo "linux-server")
 
 echo ""
 echo "================================================================"
 echo -e "\e[32m              SETUP BERHASIL & SERVER SIAP DIREMOTE             \e[0m"
 echo "================================================================"
 if [ -n "$FINAL_IP" ]; then
-    echo -e "  IP Tailscale Server : \e[33m$FINAL_IP\e[0m"
+    echo -e "  Status Mesin  : \e[32mOnline di Tailscale Network\e[0m"
+    echo -e "  Nama Hostname : \e[1m$HOST_NAME\e[0m"
+    echo -e "  IP Tailscale  : \e[33m$FINAL_IP\e[0m"
     echo ""
-    echo "  Cara Remote dari Luar Jaringan:"
-    echo -e "   SSH Terminal : \e[36mssh $USER@$FINAL_IP\e[0m"
+    echo "================================================================"
+    echo -e "\e[36m               DATA KONEKSI UNTUK APLIKASI TERMIUS              \e[0m"
+    echo "================================================================"
+    echo "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:"
+    echo ""
+    echo -e "  Label / Alias : \e[33m$HOST_NAME\e[0m"
+    echo -e "  Hostname / IP : \e[33m$FINAL_IP\e[0m"
+    echo -e "  Port          : \e[33m22\e[0m"
+    echo -e "  Username      : \e[33m$USER\e[0m"
+    echo -e "  Password      : \e[33m(Password user $USER server Anda)\e[0m"
+    echo "----------------------------------------------------------------"
+    echo -e "  Quick SSH CLI : \e[36mssh $USER@$FINAL_IP\e[0m"
 else
     echo "  Periksa dashboard Tailscale Anda untuk melihat IP mesin ini."
 fi
 echo "================================================================"
 echo ""
+echo -e "\e[90mJendela tidak akan ditutup otomatis agar Anda bisa menyalin data di atas.\e[0m"
+read -p "Tekan tombol ENTER untuk keluar..." _ < /dev/tty || true

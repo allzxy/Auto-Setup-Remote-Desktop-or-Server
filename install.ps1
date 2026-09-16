@@ -24,7 +24,7 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
 if (!$isAdmin) {
     Write-Host "  [!] Script memerlukan hak Administrator." -ForegroundColor Yellow
     Write-Host "      Membuka jendela PowerShell Administrator baru..." -ForegroundColor Yellow
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.ps1 | iex`""
+    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoExit -NoProfile -ExecutionPolicy Bypass -Command `"irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.ps1 | iex`""
     Exit
 }
 
@@ -192,20 +192,37 @@ try {
     Write-Host "  [Catatan OpenSSH] $_" -ForegroundColor Yellow
 }
 
-# Ambil IP Tailscale akhir
+# Ambil IP Tailscale dan Machine Name
 $finalIp = (& $tsCli ip -4 2>$null)
+$machineName = $env:COMPUTERNAME
 
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
-Write-Host "              SETUP BERHASIL & SERVER SIAP DIREMOTE             " -ForegroundColor Green
+Write-Host "       SETUP BERHASIL & SERVER SUDAH AKTIF DI TAILSCALE         " -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
+
 if ($finalIp) {
-    Write-Host "  IP Tailscale Server : $finalIp" -ForegroundColor Yellow
+    Write-Host "  Status Mesin  : Online di Tailscale Network" -ForegroundColor Green
+    Write-Host "  Nama Komputer : $machineName" -ForegroundColor White
+    Write-Host "  IP Tailscale  : $finalIp" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "  Cara Remote dari Luar Jaringan:" -ForegroundColor White
-    Write-Host "   1. SSH Terminal  : ssh $env:USERNAME@$finalIp" -ForegroundColor Cyan
-    Write-Host "   2. Remote Desktop: Buka RDP -> Hubungkan ke $finalIp" -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "               DATA KONEKSI UNTUK APLIKASI TERMIUS              " -ForegroundColor Cyan
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  Label / Alias : $machineName" -ForegroundColor Yellow
+    Write-Host "  Hostname / IP : $finalIp" -ForegroundColor Yellow
+    Write-Host "  Port          : 22" -ForegroundColor Yellow
+    Write-Host "  Username      : $env:USERNAME" -ForegroundColor Yellow
+    Write-Host "  Password      : (Password login Windows akun Anda)" -ForegroundColor Yellow
+    Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
+    Write-Host "  Quick SSH CLI : ssh $env:USERNAME@$finalIp" -ForegroundColor Cyan
+    Write-Host "  Remote Desktop: Buka RDP -> Sambungkan ke $finalIp" -ForegroundColor Cyan
 } else {
-    Write-Host "  Periksa dashboard Tailscale Anda untuk melihat IP mesin ini." -ForegroundColor Yellow
+    Write-Host "  [INFO] Periksa dashboard Tailscale Anda untuk melihat IP mesin ini." -ForegroundColor Yellow
 }
-Write-Host "================================================================`n" -ForegroundColor Green
+Write-Host "================================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Jendela ini tidak akan ditutup otomatis agar Anda bisa menyalin data di atas." -ForegroundColor Gray
+Read-Host "Tekan tombol ENTER untuk keluar..."
