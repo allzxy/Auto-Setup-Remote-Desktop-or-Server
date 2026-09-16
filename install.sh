@@ -37,40 +37,13 @@ echo "Dapatkan Auth Key di: https://login.tailscale.com/admin/settings/keys"
 read -p "Masukkan Tailscale Auth Key (kosongkan jika mau login browser manual): " auth_key < /dev/tty
 auth_key=$(echo "$auth_key" | tr -d '\r\n ')
 
-# 3. Input Custom Hostname
-DEFAULT_HOST=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "linux-server")
-echo ""
-read -p "Masukkan Custom Hostname Tailscale [Tekan Enter untuk default: $DEFAULT_HOST]: " input_host < /dev/tty
-input_host=$(echo "$input_host" | tr -d '\r\n ')
-CUSTOM_HOST=${input_host:-$DEFAULT_HOST}
-
-# 4. Input Custom Username untuk Termius / SSH
-DEFAULT_USER=${SUDO_USER:-$USER}
-echo ""
-read -p "Masukkan Username untuk Login SSH/Termius [Tekan Enter untuk default: $DEFAULT_USER]: " input_user < /dev/tty
-input_user=$(echo "$input_user" | tr -d '\r\n ')
-SSH_USER=${input_user:-$DEFAULT_USER}
+# Gunakan Hostname & User Default Linux (Tanpa Prompt Tambahan)
+CUSTOM_HOST=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "linux-server")
+SSH_USER=${SUDO_USER:-$USER}
 DISPLAY_PASS="(Password akun '$SSH_USER')"
 
-# Cek apakah user ada di Linux, jika belum tawarkan buat otomatis
-if ! id "$SSH_USER" >/dev/null 2>&1; then
-    echo -e "  \e[33m[!] User '$SSH_USER' belum ada di sistem Linux ini.\e[0m"
-    read -p "      Buat user baru '$SSH_USER' sekarang secara otomatis? (y/N): " make_new < /dev/tty
-    if [[ "$make_new" =~ ^[Yy]$ ]]; then
-        read -p "      Masukkan password baru untuk user '$SSH_USER': " new_pass < /dev/tty
-        new_pass=$(echo "$new_pass" | tr -d '\r\n')
-        if [ -n "$new_pass" ]; then
-            useradd -m -s /bin/bash "$SSH_USER" 2>/dev/null || true
-            echo "$SSH_USER:$new_pass" | chpasswd 2>/dev/null || true
-            usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
-            DISPLAY_PASS="$new_pass"
-            echo -e "  \e[32m[OK] User '$SSH_USER' berhasil dibuat & diberi hak akses sudo!\e[0m"
-        fi
-    fi
-else
-    usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
-    echo -e "  \e[32m[OK] User '$SSH_USER' dipastikan memiliki akses root/sudo!\e[0m"
-fi
+# Pastikan user default memiliki hak akses root/sudo
+usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
 
 echo ""
 echo "----------------------------------------------------------------"

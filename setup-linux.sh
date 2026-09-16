@@ -28,44 +28,13 @@ echo "      AUTO SETUP REMOTE DESKTOP OR SERVER (LINUX)       "
 echo "========================================================"
 echo ""
 
-DEFAULT_HOST=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "linux-server")
-DEFAULT_USER=${SUDO_USER:-$USER}
+# Gunakan Hostname & User Default Linux (Tanpa Prompt Tambahan)
+CUSTOM_HOST=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "linux-server")
+SSH_USER=${SUDO_USER:-$USER}
+DISPLAY_PASS="(Password akun '$SSH_USER')"
 
-if [ -t 0 ]; then
-    echo ""
-    read -p "Masukkan Custom Hostname Tailscale [Tekan Enter untuk default: $DEFAULT_HOST]: " input_host
-    input_host=$(echo "$input_host" | tr -d '\r\n ')
-    CUSTOM_HOST=${input_host:-$DEFAULT_HOST}
-
-    echo ""
-    read -p "Masukkan Username untuk Login SSH/Termius [Tekan Enter untuk default: $DEFAULT_USER]: " input_user
-    input_user=$(echo "$input_user" | tr -d '\r\n ')
-    SSH_USER=${input_user:-$DEFAULT_USER}
-    DISPLAY_PASS="(Password akun '$SSH_USER')"
-
-    if ! id "$SSH_USER" >/dev/null 2>&1; then
-        echo -e "  \e[33m[!] User '$SSH_USER' belum ada di sistem Linux ini.\e[0m"
-        read -p "      Buat user baru '$SSH_USER' sekarang secara otomatis? (y/N): " make_new
-        if [[ "$make_new" =~ ^[Yy]$ ]]; then
-            read -p "      Masukkan password baru untuk user '$SSH_USER': " new_pass
-            new_pass=$(echo "$new_pass" | tr -d '\r\n')
-            if [ -n "$new_pass" ]; then
-                useradd -m -s /bin/bash "$SSH_USER" 2>/dev/null || true
-                echo "$SSH_USER:$new_pass" | chpasswd 2>/dev/null || true
-                usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
-                DISPLAY_PASS="$new_pass"
-                echo -e "  \e[32m[OK] User '$SSH_USER' berhasil dibuat & diberi hak akses sudo!\e[0m"
-            fi
-        fi
-    else
-        usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
-        echo -e "  \e[32m[OK] User '$SSH_USER' dipastikan memiliki akses root/sudo!\e[0m"
-    fi
-else
-    CUSTOM_HOST="$DEFAULT_HOST"
-    SSH_USER="$DEFAULT_USER"
-    DISPLAY_PASS="(Password akun '$SSH_USER')"
-fi
+# Pastikan user default memiliki hak akses root/sudo
+usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
 
 echo ""
 # 1. Deteksi Package Manager

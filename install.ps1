@@ -41,46 +41,14 @@ Write-Host "Dapatkan Auth Key di: https://login.tailscale.com/admin/settings/key
 $authKey = Read-Host "Masukkan Tailscale Auth Key (Tekan Enter jika ingin login manual lewat browser)"
 $authKey = $authKey.Trim()
 
-# 4. Input Custom Hostname
-$defaultHost = $env:COMPUTERNAME.ToLower()
-Write-Host ""
-$inputHost = Read-Host "Masukkan Custom Hostname Tailscale [Tekan Enter untuk default: $defaultHost]"
-$customHost = if ($inputHost.Trim()) { $inputHost.Trim().ToLower() } else { $defaultHost }
-
-# 5. Input Custom Username untuk Termius / SSH
-$defaultUser = $env:USERNAME
-Write-Host ""
-$inputUser = Read-Host "Masukkan Username untuk Login SSH/Termius [Tekan Enter untuk default: $defaultUser]"
-$sshUser = if ($inputUser.Trim()) { $inputUser.Trim() } else { $defaultUser }
+# Gunakan Hostname & User Default Windows (Tanpa Prompt Tambahan)
+$customHost = $env:COMPUTERNAME.ToLower()
+$sshUser = $env:USERNAME
 $displayPass = "(Password login akun '$sshUser')"
 
-# Cek apakah user sudah ada di Windows, jika belum tawarkan buat otomatis
-if ($sshUser -ne $defaultUser) {
-    $userExists = net user $sshUser 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  [!] User '$sshUser' belum terdaftar di Windows ini." -ForegroundColor Yellow
-        $makeNew = Read-Host "      Buat user baru '$sshUser' sekarang secara otomatis? (Y/N)"
-        if ($makeNew.Trim().ToUpper() -eq "Y") {
-            $newPass = Read-Host "      Masukkan password baru untuk user '$sshUser'"
-            if ($newPass) {
-                net user $sshUser $newPass /add | Out-Null
-                net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
-                net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
-                $displayPass = $newPass
-                Write-Host "  [OK] User '$sshUser' berhasil dibuat & diberi hak akses Administrator/RDP!" -ForegroundColor Green
-            }
-        }
-    } else {
-        # Pastikan user yang sudah ada WAJIB punya hak Administrator & RDP
-        net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
-        net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
-        Write-Host "  [OK] User '$sshUser' dipastikan memiliki hak akses Administrator & RDP!" -ForegroundColor Green
-    }
-} else {
-    # Pastikan default user juga masuk grup Administrators & RDP
-    net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
-    net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
-}
+# Pastikan default user masuk grup Administrators & Remote Desktop Users
+net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
+net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
 
 Write-Host ""
 Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
