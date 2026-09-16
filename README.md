@@ -16,14 +16,31 @@ One-click automated setup to turn any **Windows** or **Linux** machine into an a
 
 ---
 
-## 🖥️ Quick Start: Windows Server
+## ⚡ Instant 1-Line Terminal Install (Recommended)
+
+Tidak perlu download file atau git clone manual! Cukup copy-paste command ini ke terminal server target:
+
+### 🪟 Windows (PowerShell Administrator):
+```powershell
+irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.ps1 | iex
+```
+*(Terminal akan menanyakan persetujuan `[Y/N]` dan Tailscale Auth Key secara interaktif).*
+
+### 🐧 Linux (Ubuntu / Debian / CentOS / Fedora / Arch):
+```bash
+curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.sh | bash
+```
+
+---
+
+## 🖥️ Manual Offline Start: Windows Server
 
 Supports Windows 10, Windows 11, and Windows Server 2016/2019/2022/2025.
 
 1. Clone or download this repository:
    ```cmd
-   git clone https://github.com/your-username/auto-setup-remote-desktop-or-server.git
-   cd auto-setup-remote-desktop-or-server
+   git clone https://github.com/allzxy/Auto-Setup-Remote-Desktop-or-Server.git
+   cd Auto-Setup-Remote-Desktop-or-Server
    ```
 2. Copy `tailscale-key.txt.example` to `tailscale-key.txt` and paste your [Tailscale Auth Key](https://login.tailscale.com/admin/settings/keys):
    ```cmd
@@ -34,14 +51,14 @@ Supports Windows 10, Windows 11, and Windows Server 2016/2019/2022/2025.
 
 ---
 
-## 🐧 Quick Start: Linux Server
+## 🐧 Manual Offline Start: Linux Server
 
 Supports Ubuntu, Debian, CentOS, RHEL, Rocky Linux, AlmaLinux, Fedora, Arch, and openSUSE.
 
 1. Clone or download this repository:
    ```bash
-   git clone https://github.com/your-username/auto-setup-remote-desktop-or-server.git
-   cd auto-setup-remote-desktop-or-server
+   git clone https://github.com/allzxy/Auto-Setup-Remote-Desktop-or-Server.git
+   cd Auto-Setup-Remote-Desktop-or-Server
    ```
 2. Copy `tailscale-key.txt.example` to `tailscale-key.txt` and insert your Tailscale Auth Key:
    ```bash
