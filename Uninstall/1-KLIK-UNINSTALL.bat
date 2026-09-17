@@ -7,10 +7,12 @@ title Uninstaller Remote Server
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [!] Meminta izin Administrator...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell.exe -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '\"%~dp0uninstall.ps1\"' -Verb RunAs"
     exit /b
 )
 
 :: 2. Jalankan PowerShell uninstaller
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0uninstall.ps1"
+echo.
+pause
 exit

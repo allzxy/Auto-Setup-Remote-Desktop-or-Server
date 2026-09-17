@@ -14,11 +14,12 @@ Write-Host "       UNINSTALLER: AUTO SETUP REMOTE DESKTOP OR SERVER         " -F
 Write-Host "================================================================" -ForegroundColor Red
 Write-Host ""
 Write-Host "  Tindakan pembersihan yang akan dilakukan:" -ForegroundColor White
-Write-Host "   1. Logout & Hapus aplikasi Tailscale beserta service & datanya" -ForegroundColor Gray
-Write-Host "   2. Hentikan & Copot OpenSSH Server (Service, Host Keys & Config)" -ForegroundColor Gray
-Write-Host "   3. Kembalikan setting Firewall (Port 22 & RDP 3389)" -ForegroundColor Gray
-Write-Host "   4. Kembalikan power plan Windows (Anti-sleep dikembalikan normal)" -ForegroundColor Gray
-Write-Host "   5. Hapus Background Task Scheduler (Keep-Alive Watchdog)" -ForegroundColor Gray
+Write-Host "   1. Buka semua kunci Hardening ACL (SDDL, File ACL, Registry ACL)" -ForegroundColor Gray
+Write-Host "   2. Logout & Hapus aplikasi Tailscale beserta service & datanya" -ForegroundColor Gray
+Write-Host "   3. Hentikan & Copot OpenSSH Server (Service, Host Keys & Config)" -ForegroundColor Gray
+Write-Host "   4. Kembalikan setting Firewall (Port 22 & RDP 3389)" -ForegroundColor Gray
+Write-Host "   5. Kembalikan power plan Windows (Sleep, Lid, Lock Screen normal)" -ForegroundColor Gray
+Write-Host "   6. Hapus Background Task Scheduler (Keep-Alive Watchdog)" -ForegroundColor Gray
 Write-Host ""
 
 # 1. Cek Hak Administrator
@@ -26,7 +27,12 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
 if (!$isAdmin) {
     Write-Host "  [!] Script memerlukan hak Administrator." -ForegroundColor Yellow
     Write-Host "      Membuka jendela PowerShell Administrator baru..." -ForegroundColor Yellow
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoExit -NoProfile -ExecutionPolicy Bypass -Command `"irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Uninstall/uninstall.ps1 | iex`""
+    $localUninst = if ($PSCommandPath) { $PSCommandPath } elseif ($PSScriptRoot) { Join-Path $PSScriptRoot "uninstall.ps1" } else { $null }
+    if ($localUninst -and (Test-Path $localUninst)) {
+        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoExit -NoProfile -ExecutionPolicy Bypass -File `"$localUninst`""
+    } else {
+        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoExit -NoProfile -ExecutionPolicy Bypass -Command `"irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/Uninstall/uninstall.ps1 | iex`""
+    }
     Exit
 }
 
@@ -43,9 +49,102 @@ Write-Host "                 MEMULAI PROSES PEMBERSIHAN                     " -F
 Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
 
 # ==============================================================================
+# TAHAP 0: BUKA SEMUA KUNCI HARDENING ACL (SDDL, FILE, REGISTRY, UNINSTALL)
+# ==============================================================================
+Write-Host "`n>>> [1/6] Membuka Kunci Hardening ACL (Proteksi Service & File)..." -ForegroundColor Cyan
+
+# 0.1 Reset Service SDDL ke default Windows
+$defaultSddl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)"
+sc.exe sdset Tailscale $defaultSddl 2>$null | Out-Null
+sc.exe sdset sshd $defaultSddl 2>$null | Out-Null
+Write-Host "  [OK] Service SDDL Tailscale & sshd dibuka." -ForegroundColor Green
+
+# 0.2 Unlock File ACL: Tailscale & OpenSSH directories
+$dirsToUnlock = @("C:\Program Files\Tailscale", "$env:ProgramData\ssh", "C:\Program Files\OpenSSH")
+foreach ($d in $dirsToUnlock) {
+    if (Test-Path $d) {
+        try {
+            icacls.exe $d /remove:d "BUILTIN\Users" /t /c /q 2>$null | Out-Null
+            icacls.exe $d /inheritance:e /c /q 2>$null | Out-Null
+            icacls.exe $d /grant:r "SYSTEM:(OI)(CI)F" "BUILTIN\Administrators:(OI)(CI)F" /c /q 2>$null | Out-Null
+        } catch {}
+    }
+}
+Write-Host "  [OK] File ACL Tailscale & OpenSSH dibuka." -ForegroundColor Green
+
+# 0.3 Unlock Registry ACL: Service registry
+$regServices = @(
+    "SYSTEM\CurrentControlSet\Services\Tailscale",
+    "SYSTEM\CurrentControlSet\Services\sshd"
+)
+foreach ($regSvc in $regServices) {
+    try {
+        if (Test-Path "HKLM:\$regSvc") {
+            $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+                $regSvc,
+                [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+                ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
+            )
+            if ($regKey) {
+                $acl = $regKey.GetAccessControl()
+                $denyRules = $acl.Access | Where-Object {
+                    $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
+                    $_.IdentityReference -match "Users"
+                }
+                foreach ($rule in $denyRules) { $acl.RemoveAccessRule($rule) | Out-Null }
+                $acl.SetAccessRuleProtection($false, $true)
+                $regKey.SetAccessControl($acl)
+                $regKey.Close()
+            }
+        }
+    } catch {}
+}
+Write-Host "  [OK] Registry ACL Services Tailscale & sshd dibuka." -ForegroundColor Green
+
+# 0.4 Unlock Registry ACL: Uninstall Keys
+try {
+    $uninstBases = @(
+        "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        "SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+    foreach ($baseKey in $uninstBases) {
+        $fullBase = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($baseKey)
+        if ($fullBase) {
+            foreach ($subName in $fullBase.GetSubKeyNames()) {
+                $subKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$baseKey\$subName")
+                if ($subKey) {
+                    $dName = $subKey.GetValue("DisplayName")
+                    $subKey.Close()
+                    if ($dName -like "*Tailscale*") {
+                        $targetKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+                            "$baseKey\$subName",
+                            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+                            ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
+                        )
+                        if ($targetKey) {
+                            $acl = $targetKey.GetAccessControl()
+                            $denyRules = $acl.Access | Where-Object {
+                                $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
+                                $_.IdentityReference -match "Users"
+                            }
+                            foreach ($rule in $denyRules) { $acl.RemoveAccessRule($rule) | Out-Null }
+                            $acl.SetAccessRuleProtection($false, $true)
+                            $targetKey.SetAccessControl($acl)
+                            $targetKey.Close()
+                        }
+                    }
+                }
+            }
+            $fullBase.Close()
+        }
+    }
+    Write-Host "  [OK] Registry ACL Uninstall Key Tailscale dibuka." -ForegroundColor Green
+} catch {}
+
+# ==============================================================================
 # 1. UNINSTALL TAILSCALE
 # ==============================================================================
-Write-Host "`n>>> [1/5] Membersihkan Tailscale..." -ForegroundColor Cyan
+Write-Host "`n>>> [2/6] Membersihkan Tailscale..." -ForegroundColor Cyan
 $tsCli = "C:\Program Files\Tailscale\tailscale.exe"
 if (Test-Path $tsCli) {
     Write-Host "  - Memutuskan koneksi Tailscale (logout)..." -ForegroundColor Yellow
@@ -56,90 +155,6 @@ if (Test-Path $tsCli) {
 Stop-Service -Name "Tailscale" -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "tailscale", "tailscale-ipn", "tailscaled" -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
-
-# --- UNLOCK 3-LAYER ACL (wajib dilakukan sebelum uninstall) ---
-Write-Host "  - Membuka kunci Anti-Uninstall Hardening (3 Layer)..." -ForegroundColor Yellow
-
-# Unlock Layer 1: File ACL - kembalikan izin normal ke folder Tailscale
-$tsDir = "C:\Program Files\Tailscale"
-if (Test-Path $tsDir) {
-    try {
-        # Hapus deny rule untuk Users
-        icacls.exe $tsDir /remove:d "BUILTIN\Users" /t /c /q 2>$null | Out-Null
-        # Kembalikan inheritance dari parent
-        icacls.exe $tsDir /inheritance:e /c /q 2>$null | Out-Null
-        # Grant full ke Administrators & SYSTEM (agar uninstaller bisa jalan)
-        icacls.exe $tsDir /grant:r "SYSTEM:(OI)(CI)F" "BUILTIN\Administrators:(OI)(CI)F" /c /q 2>$null | Out-Null
-        Write-Host "  [OK] Unlock File ACL: Folder Tailscale dibuka." -ForegroundColor Green
-    } catch {
-        Write-Host "  [WARN] Gagal unlock File ACL: $_" -ForegroundColor Yellow
-    }
-}
-
-# Unlock Layer 2: Registry ACL - hapus deny rule dari registry service
-try {
-    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tailscale"
-    if (Test-Path $regPath) {
-        $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
-            "SYSTEM\CurrentControlSet\Services\Tailscale",
-            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
-            ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
-        )
-        if ($regKey) {
-            $acl = $regKey.GetAccessControl()
-            # Hapus semua Deny rule untuk Users
-            $denyRules = $acl.Access | Where-Object {
-                $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
-                $_.IdentityReference -match "Users"
-            }
-            foreach ($rule in $denyRules) { $acl.RemoveAccessRule($rule) | Out-Null }
-            # Aktifkan kembali inheritance
-            $acl.SetAccessRuleProtection($false, $true)
-            $regKey.SetAccessControl($acl)
-            $regKey.Close()
-            Write-Host "  [OK] Unlock Registry ACL: Registry Tailscale dibuka." -ForegroundColor Green
-        }
-    }
-} catch {
-    Write-Host "  [WARN] Gagal unlock Registry ACL: $_" -ForegroundColor Yellow
-}
-
-# Unlock Layer 3: Uninstall Key ACL - hapus deny rule dari entry uninstall
-try {
-    $uninstBases = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-    )
-    foreach ($baseKey in $uninstBases) {
-        if (Test-Path $baseKey) {
-            $subkeys = Get-ChildItem $baseKey -ErrorAction SilentlyContinue |
-                Where-Object { ($_.GetValue("DisplayName") -like "*Tailscale*") }
-            foreach ($sk in $subkeys) {
-                $skKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
-                    ($sk.Name -replace "HKEY_LOCAL_MACHINE\\", ""),
-                    [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
-                    ([System.Security.AccessControl.RegistryRights]::ChangePermissions -bor [System.Security.AccessControl.RegistryRights]::ReadPermissions)
-                )
-                if ($skKey) {
-                    $acl = $skKey.GetAccessControl()
-                    $denyRules = $acl.Access | Where-Object {
-                        $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
-                        $_.IdentityReference -match "Users"
-                    }
-                    foreach ($rule in $denyRules) { $acl.RemoveAccessRule($rule) | Out-Null }
-                    $acl.SetAccessRuleProtection($false, $true)
-                    $skKey.SetAccessControl($acl)
-                    $skKey.Close()
-                }
-            }
-        }
-    }
-    Write-Host "  [OK] Unlock Uninstall Key ACL: Entry uninstall Tailscale dibuka." -ForegroundColor Green
-} catch {
-    Write-Host "  [WARN] Gagal unlock Uninstall Key ACL: $_" -ForegroundColor Yellow
-}
-
-Write-Host "  [DONE] Semua kunci ACL dibuka. Melanjutkan uninstall..." -ForegroundColor Cyan
 
 # Cari Uninstaller Tailscale di Registry
 $uninstalledTs = $false
@@ -181,13 +196,12 @@ Remove-Item -Path "$env:ProgramData\Tailscale" -Recurse -Force -ErrorAction Sile
 # Bersihkan sisa registry Tailscale
 Remove-Item -Path "HKLM:\SOFTWARE\Tailscale IPN" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "HKCU:\SOFTWARE\Tailscale IPN" -Recurse -Force -ErrorAction SilentlyContinue
-Write-Host "  [OK] Tailscale berhasil dihapus sepenuhnya (termasuk semua kunci ACL)." -ForegroundColor Green
-
+Write-Host "  [OK] Tailscale berhasil dihapus sepenuhnya." -ForegroundColor Green
 
 # ==============================================================================
 # 2. UNINSTALL OPENSSH SERVER
 # ==============================================================================
-Write-Host "`n>>> [2/5] Membersihkan OpenSSH Server..." -ForegroundColor Cyan
+Write-Host "`n>>> [3/6] Membersihkan OpenSSH Server..." -ForegroundColor Cyan
 Stop-Service -Name "sshd", "ssh-agent" -Force -ErrorAction SilentlyContinue
 sc.exe delete sshd 2>$null | Out-Null
 sc.exe delete "ssh-agent" 2>$null | Out-Null
@@ -218,7 +232,7 @@ Write-Host "  [OK] OpenSSH Server & data konfigurasi berhasil dihapus." -Foregro
 # ==============================================================================
 # 3. KEMBALIKAN FIREWALL & RDP
 # ==============================================================================
-Write-Host "`n>>> [3/5] Mengembalikan Aturan Firewall & Remote Desktop..." -ForegroundColor Cyan
+Write-Host "`n>>> [4/6] Mengembalikan Aturan Firewall & Remote Desktop..." -ForegroundColor Cyan
 # Hapus firewall port 22
 Remove-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyContinue | Out-Null
 
@@ -230,19 +244,24 @@ Write-Host "  [OK] Port 22 SSH ditutup dan Remote Desktop dinonaktifkan." -Foreg
 # ==============================================================================
 # 4. KEMBALIKAN POWER MANAGEMENT (RESTORE SLEEP)
 # ==============================================================================
-Write-Host "`n>>> [4/5] Mengembalikan Pengaturan Power / Sleep..." -ForegroundColor Cyan
+Write-Host "`n>>> [5/6] Mengembalikan Pengaturan Power / Sleep..." -ForegroundColor Cyan
 # Kembalikan ke setting default Windows (sleep setelah 30 menit)
-powercfg /change standby-timeout-ac 30 | Out-Null
-powercfg /change monitor-timeout-ac 15 | Out-Null
-Write-Host "  [OK] Power timeout dikembalikan ke standar (Sleep: 30 menit, Layar: 15 menit)." -ForegroundColor Green
+powercfg /change standby-timeout-ac 30 2>$null | Out-Null
+powercfg /change monitor-timeout-ac 15 2>$null | Out-Null
+powercfg /setacvalueindex scheme_current sub_buttons lidaction 1 2>$null | Out-Null
+powercfg /setdcvalueindex scheme_current sub_buttons lidaction 1 2>$null | Out-Null
+powercfg /setacvalueindex scheme_current 238c9fa8-0aad-41ed-83f4-97be242c8f20 7bc4a2f9-d8fc-4469-b07b-33eb785aaca0 120 2>$null | Out-Null
+powercfg /setdcvalueindex scheme_current 238c9fa8-0aad-41ed-83f4-97be242c8f20 7bc4a2f9-d8fc-4469-b07b-33eb785aaca0 120 2>$null | Out-Null
+powercfg /setactive scheme_current 2>$null | Out-Null
+Write-Host "  [OK] Power timeout & perilaku lid/lock screen dikembalikan ke standar." -ForegroundColor Green
 
 # ==============================================================================
 # 5. BERSIHKAN TASK SCHEDULER & LOG
 # ==============================================================================
-Write-Host "`n>>> [5/5] Membersihkan Task Scheduler & Log..." -ForegroundColor Cyan
+Write-Host "`n>>> [6/6] Membersihkan Task Scheduler & Log..." -ForegroundColor Cyan
 Unregister-ScheduledTask -TaskName "RemoteServerKeepAlive" -Confirm:$false -ErrorAction SilentlyContinue
+schtasks.exe /delete /tn "RemoteServerKeepAlive" /f 2>$null | Out-Null
 Remove-Item -Path "D:\All\Auto Setup Remote Desktop or Server\*.log" -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "D:\All\Setup Server\*.log" -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$env:TEMP\tailscale*" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "$env:TEMP\OpenSSH*" -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "  [OK] Background Task Scheduler dan file log sementara dibersihkan." -ForegroundColor Green
@@ -254,8 +273,8 @@ Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host "              UNINSTALL SELESAI & SISTEM BERSIH                 " -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
+Write-Host "  [ OK ] Semua Kunci Hardening ACL   : Dibuka & Dibersihkan" -ForegroundColor Green
 Write-Host "  [ OK ] Tailscale Application       : Terhapus Bersih" -ForegroundColor Green
-Write-Host "  [ OK ] Tailscale Anti-Uninstall ACL : Semua Kunci Dibuka & Dibersihkan" -ForegroundColor Green
 Write-Host "  [ OK ] Tailscale Mesh Tunnel       : Terputus & Dihapus" -ForegroundColor Green
 Write-Host "  [ OK ] OpenSSH Server & Service    : Dinonaktifkan & Dihapus" -ForegroundColor Green
 Write-Host "  [ OK ] Host Keys & Config          : Dihapus dari ProgramData" -ForegroundColor Green

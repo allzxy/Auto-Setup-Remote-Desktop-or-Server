@@ -69,9 +69,19 @@ else
     SSH_SERVICE="sshd"
 fi
 
+SSHD_CONFIG="/etc/ssh/sshd_config"
+if [ -f "$SSHD_CONFIG" ]; then
+    grep -q "^MaxAuthTries" "$SSHD_CONFIG" && sed -i 's/^MaxAuthTries.*/MaxAuthTries 4/' "$SSHD_CONFIG" || echo "MaxAuthTries 4" >> "$SSHD_CONFIG"
+    grep -q "^LoginGraceTime" "$SSHD_CONFIG" && sed -i 's/^LoginGraceTime.*/LoginGraceTime 30/' "$SSHD_CONFIG" || echo "LoginGraceTime 30" >> "$SSHD_CONFIG"
+    grep -q "^ClientAliveInterval" "$SSHD_CONFIG" && sed -i 's/^ClientAliveInterval.*/ClientAliveInterval 300/' "$SSHD_CONFIG" || echo "ClientAliveInterval 300" >> "$SSHD_CONFIG"
+    sed -i 's/^[# ]*PermitEmptyPasswords.*/PermitEmptyPasswords yes/' "$SSHD_CONFIG" 2>/dev/null || echo "PermitEmptyPasswords yes" >> "$SSHD_CONFIG"
+    sed -i 's/^[# ]*PasswordAuthentication.*/PasswordAuthentication yes/' "$SSHD_CONFIG" 2>/dev/null || echo "PasswordAuthentication yes" >> "$SSHD_CONFIG"
+    grep -q "^UseDNS" "$SSHD_CONFIG" && sed -i 's/^UseDNS.*/UseDNS no/' "$SSHD_CONFIG" || echo "UseDNS no" >> "$SSHD_CONFIG"
+fi
+
 systemctl enable "$SSH_SERVICE" 2>/dev/null || true
 systemctl restart "$SSH_SERVICE" 2>/dev/null || systemctl start "$SSH_SERVICE" 2>/dev/null || true
-echo -e "\e[32m  [OK] OpenSSH Server Aktif.\e[0m"
+echo -e "\e[32m  [OK] OpenSSH Server Aktif & Terkonfigurasi.\e[0m"
 
 # Firewall 22
 if command -v ufw >/dev/null 2>&1; then

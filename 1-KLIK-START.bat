@@ -7,11 +7,11 @@ title Auto Setup Remote Desktop or Server
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [!] Meminta izin Administrator...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~f0\"\"' -Verb RunAs"
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell.exe -ArgumentList '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', '\"%~dp0setup-remote.ps1\"' -Verb RunAs"
     exit /b
 )
 
-:: 2. Jalankan PowerShell setup dengan path aman dari spasi
+:: 2. Jalankan PowerShell setup
 echo ========================================================
 echo    MEMULAI INSTALASI & SETUP REMOTE SERVER (ADMIN)      
 echo ========================================================

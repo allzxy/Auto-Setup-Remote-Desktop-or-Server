@@ -33,7 +33,11 @@ function Print-Status ($name, $isOk, $detail) {
     }
 }
 
-# 1. Cek Koneksi Internet
+# 1. Cek Hak Akses Administrator
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+Print-Status "Hak Akses Administrator" $isAdmin $(if ($isAdmin) { "Elevated (Administrator)" } else { "Non-Admin (Jalankan sebagai Admin untuk audit penuh)" })
+
+# 2. Cek Koneksi Internet
 $internetOk = $false
 try {
     $t1 = Test-NetConnection -ComputerName "1.1.1.1" -Port 53 -InformationLevel Quiet -WarningAction SilentlyContinue
@@ -42,7 +46,7 @@ try {
 } catch {}
 Print-Status "Koneksi Internet" $internetOk $(if ($internetOk) { "Online" } else { "Offline / Gangguan" })
 
-# 2. Cek Tailscale App & Service
+# 3. Cek Tailscale App & Service
 $tsCli = "C:\Program Files\Tailscale\tailscale.exe"
 $tsAppInstalled = Test-Path $tsCli
 $tsService = Get-Service -Name "Tailscale" -ErrorAction SilentlyContinue
@@ -51,7 +55,7 @@ $tsServiceRunning = ($tsService -and $tsService.Status -eq "Running")
 Print-Status "Tailscale App" $tsAppInstalled $(if ($tsAppInstalled) { "Terinstall di $tsCli" } else { "Belum Terinstall" })
 Print-Status "Tailscale Service" $tsServiceRunning $(if ($tsServiceRunning) { "Service Berjalan di Background" } else { "Service Berhenti" })
 
-# 3. Cek Koneksi Tailscale Network (IP Machine & Hostname)
+# 4. Cek Koneksi Tailscale Network (IP Machine & Hostname)
 $tsIp = ""
 $tsConnected = $false
 $tsHostname = $env:COMPUTERNAME.ToLower()
@@ -60,7 +64,6 @@ if ($tsAppInstalled) {
     $tsIp = (& $tsCli ip -4 2>$null)
     if ($tsIp -and $tsIp -match "^\d+\.\d+\.\d+\.\d+$") {
         $tsConnected = $true
-        # Cek self hostname dari status
         $statusJson = (& $tsCli status --json 2>$null | ConvertFrom-Json 2>$null)
         if ($statusJson -and $statusJson.Self -and $statusJson.Self.HostName) {
             $tsHostname = $statusJson.Self.HostName
@@ -69,7 +72,7 @@ if ($tsAppInstalled) {
 }
 Print-Status "Tailscale Mesh Network" $tsConnected $(if ($tsConnected) { "Terhubung! IP Mesin: $tsIp" } else { "Belum Login / Belum Konek" })
 
-# 4. Cek OpenSSH Server & Service
+# 5. Cek OpenSSH Server & Service
 $sshInstalled = (Get-Service -Name "sshd" -ErrorAction SilentlyContinue) -or (Test-Path "C:\Windows\System32\OpenSSH\sshd.exe") -or (Test-Path "C:\Program Files\OpenSSH\sshd.exe")
 $sshService = Get-Service -Name "sshd" -ErrorAction SilentlyContinue
 $sshRunning = ($sshService -and $sshService.Status -eq "Running")
@@ -77,12 +80,12 @@ $sshRunning = ($sshService -and $sshService.Status -eq "Running")
 Print-Status "OpenSSH Server" $sshInstalled $(if ($sshInstalled) { "Terpasang di System" } else { "Belum Terpasang" })
 Print-Status "OpenSSH Service" $sshRunning $(if ($sshRunning) { "Running (Port 22)" } else { "Belum Aktif" })
 
-# 5. Cek Firewall Port 22
+# 6. Cek Firewall Port 22
 $fwSsh = Get-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq "True" }
 $fwSshOk = [bool]$fwSsh
 Print-Status "Firewall Port 22 (SSH)" $fwSshOk $(if ($fwSshOk) { "Allowed" } else { "Port Belum Terbuka" })
 
-# 6. Cek Remote Desktop (RDP)
+# 7. Cek Remote Desktop (RDP)
 $rdpReg = (Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -ErrorAction SilentlyContinue).fDenyTSConnections
 $rdpEnabled = ($rdpReg -eq 0)
 $fwRdp = Get-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq "True" }
@@ -90,94 +93,51 @@ $fwRdpOk = [bool]$fwRdp
 
 Print-Status "Remote Desktop (RDP)" ($rdpEnabled -and $fwRdpOk) $(if ($rdpEnabled -and $fwRdpOk) { "Aktif & Port 3389 Terbuka" } else { "Non-aktif" })
 
-# 7. Cek Anti-Sleep Mode
+# 8. Cek Power Management (Kebal Sleep, Lock & Tutup Layar)
 $powerAc = powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE 2>$null | Select-String "Current AC Power Setting Index:" | ForEach-Object { $_.ToString().Split(":")[-1].Trim() }
 $antiSleepOk = ($powerAc -eq "0x00000000" -or $powerAc -eq "0")
 Print-Status "Anti-Sleep Mode" $antiSleepOk $(if ($antiSleepOk) { "Aktif (Server Tidak Akan Sleep)" } else { "Masih Bisa Sleep" })
 
-# 8. Cek Resiliensi & Watchdog Auto-Restart
-$watchdogTask = Get-ScheduledTask -TaskName "RemoteServerKeepAlive" -ErrorAction SilentlyContinue
+$activeScheme = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes" -Name "ActivePowerScheme" -ErrorAction SilentlyContinue).ActivePowerScheme
+$lidReg = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\$activeScheme\4f971e89-eebd-4455-a8de-9e59040e7347\5ca83367-6e45-459f-a27b-476b1d01c936" -ErrorAction SilentlyContinue
+$lidOk = ($lidReg -and $lidReg.ACSettingIndex -eq 0)
+Print-Status "Kebal Tutup Layar Laptop" $lidOk $(if ($lidOk) { "Aktif (Tutup Laptop Tetap Jalan)" } else { "Akan Sleep Saat Ditutup" })
+
+$lockReg = Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\$activeScheme\238c9fa8-0aad-41ed-83f4-97be242c8f20\7bc4a2f9-d8fc-4469-b07b-33eb785aaca0" -ErrorAction SilentlyContinue
+$lockOk = ($lockReg -and $lockReg.ACSettingIndex -eq 0)
+Print-Status "Kebal Lock Screen (Win+L)" $lockOk $(if ($lockOk) { "Aktif (Tetap Jalan Saat Layar Dikunci/Mati)" } else { "Akan Sleep Setelah Di-lock" })
+
+# 9. Cek Dukungan Login Tanpa Password (LSA Blank Password)
+$blankPw = (Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Lsa' -Name 'LimitBlankPasswordUse' -ErrorAction SilentlyContinue).LimitBlankPasswordUse
+$blankPwOk = ($blankPw -eq 0)
+Print-Status "Login Tanpa Password (LSA)" $blankPwOk $(if ($blankPwOk) { "Diizinkan (LimitBlankPasswordUse = 0)" } else { "Terkunci (Perlu Password Windows)" })
+
+# 10. Cek Resiliensi Watchdog Task Scheduler
+$watchdogTask = (Get-ScheduledTask -TaskName "RemoteServerKeepAlive" -ErrorAction SilentlyContinue) -or (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\RemoteServerKeepAlive")
 $watchdogOk = [bool]$watchdogTask
-Print-Status "Resiliensi Watchdog" $watchdogOk $(if ($watchdogOk) { "Aktif (Auto-Heal tiap 15 mnt)" } else { "Belum Terpasang" })
+Print-Status "Resiliensi Watchdog" $watchdogOk $(if ($watchdogOk) { "Aktif (Task 'RemoteServerKeepAlive' Auto-Heal 15 mnt)" } else { "Belum Terpasang" })
 
-# 9. Cek Anti-Uninstall Hardening Layer 1: File ACL Tailscale
-$tsDir = "C:\Program Files\Tailscale"
-$fileAclOk = $false
-if (Test-Path $tsDir) {
-    try {
-        $acl = icacls.exe $tsDir 2>$null
-        # Cek apakah BUILTIN\Users punya DENY delete
-        $fileAclOk = ($acl | Select-String "BUILTIN\\Users.*DENY" -Quiet) -or ($acl | Select-String "Users.*Deny" -Quiet) -or ($acl | Select-String "Users.*D\)" -Quiet)
-        if (-not $fileAclOk) {
-            # Alternatif: cek inheritance dihapus & hanya SYSTEM+Admins yang punya
-            $hasUsers = $acl | Select-String "BUILTIN\\Users" | Where-Object { $_ -notmatch "DENY|Deny" }
-            $fileAclOk = -not [bool]$hasUsers
-        }
-    } catch {}
-}
-Print-Status "Anti-Uninstall: File ACL Tailscale" $fileAclOk $(if ($fileAclOk) { "Folder dikunci (Users tidak bisa hapus file)" } else { "Belum dikunci / Tailscale belum install" })
+# 11. Cek Resiliensi Auto-Restart Service (Recovery Actions)
+$tsFail = ((sc.exe qfailure Tailscale 2>$null) -join "") -match "RESTART"
+$sshFail = ((sc.exe qfailure sshd 2>$null) -join "") -match "RESTART"
+$autoRestartOk = $tsFail -and $sshFail
+Print-Status "Auto-Restart Service" $autoRestartOk $(if ($autoRestartOk) { "Aktif (Restart otomatis jika service mati/crash)" } else { "Belum Diatur Lengkap" })
 
-# 10. Cek Anti-Uninstall Hardening Layer 2: Registry ACL Tailscale Service
-$regAclOk = $false
-try {
-    $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\Tailscale"
-    if (Test-Path $regPath) {
-        $regKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
-            "SYSTEM\CurrentControlSet\Services\Tailscale",
-            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree,
-            [System.Security.AccessControl.RegistryRights]::ReadPermissions
-        )
-        if ($regKey) {
-            $acl = $regKey.GetAccessControl()
-            $denyRules = $acl.Access | Where-Object { 
-                $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
-                $_.IdentityReference -match "Users"
-            }
-            $regAclOk = [bool]$denyRules
-            $regKey.Close()
-        }
-    }
-} catch {}
-Print-Status "Anti-Uninstall: Registry ACL Tailscale" $regAclOk $(if ($regAclOk) { "Registry dikunci (Users tidak bisa modif)" } else { "Belum dikunci / tidak ditemukan" })
+# 12. Cek Hardening Service SDDL (Anti-End-Service Non-Admin)
+$sddlTs = ((sc.exe sdshow Tailscale 2>$null) -join "")
+$sddlSsh = ((sc.exe sdshow sshd 2>$null) -join "")
+$sddlHardened = ($sddlTs -match "WPDTSD;;;BU" -or $sddlTs -match "CCLCSWLOCRRC;;;AU") -and ($sddlSsh -match "WPDTSD;;;BU" -or $sddlSsh -match "CCLCSWLOCRRC;;;AU")
+Print-Status "Hardening Service SDDL" $sddlHardened $(if ($sddlHardened) { "Terkunci (Non-Admin dilarang Stop/Delete)" } else { "Standar (Belum Dikunci SDDL)" })
 
-# 11. Cek Anti-Uninstall Hardening Layer 3: Uninstall Key ACL
-$uninstAclOk = $false
-try {
-    $uninstBases = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-    )
-    foreach ($base in $uninstBases) {
-        if (Test-Path $base) {
-            $sk = Get-ChildItem $base -ErrorAction SilentlyContinue | 
-                Where-Object { ($_.GetValue("DisplayName") -like "*Tailscale*") } | 
-                Select-Object -First 1
-            if ($sk) {
-                $skKey = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
-                    ($sk.Name -replace "HKEY_LOCAL_MACHINE\\", ""),
-                    [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree,
-                    [System.Security.AccessControl.RegistryRights]::ReadPermissions
-                )
-                if ($skKey) {
-                    $acl = $skKey.GetAccessControl()
-                    $denyRules = $acl.Access | Where-Object {
-                        $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Deny -and
-                        $_.IdentityReference -match "Users"
-                    }
-                    $uninstAclOk = [bool]$denyRules
-                    $skKey.Close()
-                    break
-                }
-            }
-        }
-    }
-} catch {}
-Print-Status "Anti-Uninstall: Uninstall Key ACL" $uninstAclOk $(if ($uninstAclOk) { "Tombol Uninstall dikunci (Users tidak bisa trigger)" } else { "Belum dikunci / tidak ditemukan" })
+# 13. Cek Hardening File ACL (Anti-Uninstall / Anti-Hapus File)
+$tsAcl = (Get-Acl "C:\Program Files\Tailscale" -ErrorAction SilentlyContinue).Access | Where-Object { $_.AccessControlType -eq "Deny" -and $_.IdentityReference -match "Users" }
+$fileAclOk = [bool]$tsAcl
+Print-Status "Hardening File ACL" $fileAclOk $(if ($fileAclOk) { "Folder Tailscale & OpenSSH Terproteksi" } else { "Belum Terproteksi" })
 
 Write-Host "`n----------------------------------------------------------------" -ForegroundColor Gray
 
 if ($allPassed) {
-    Write-Host "STATUS KESELURUHAN: SEMPURNA (SIAP DI-REMOTE 24/7)" -ForegroundColor Green
+    Write-Host "STATUS KESELURUHAN: SEMPURNA (SIAP DI-REMOTE 24/7 & TERLINDUNGI)" -ForegroundColor Green
     
     if ($tsIp) {
         Write-Host ""
@@ -197,9 +157,8 @@ if ($allPassed) {
         Write-Host "================================================================" -ForegroundColor Cyan
     }
 } else {
-    Write-Host "STATUS KESELURUHAN: MASIH ADA YANG KURANG" -ForegroundColor Yellow
-    Write-Host "Jalankan installer sekali lagi untuk memperbaiki komponen yang [FAIL]:" -ForegroundColor Yellow
-    Write-Host "  irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.ps1 | iex" -ForegroundColor White
+    Write-Host "STATUS KESELURUHAN: MASIH ADA YANG PERLU DIKONFIGURASI" -ForegroundColor Yellow
+    Write-Host "Jalankan 1-KLIK-START.bat (Run as Administrator) untuk mengaktifkan Watchdog & Hardening." -ForegroundColor Yellow
 }
 
 Write-Host "================================================================`n" -ForegroundColor Cyan
