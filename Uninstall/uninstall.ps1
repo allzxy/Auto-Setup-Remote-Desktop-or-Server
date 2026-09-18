@@ -267,6 +267,26 @@ Remove-Item -Path "$env:TEMP\OpenSSH*" -Recurse -Force -ErrorAction SilentlyCont
 Write-Host "  [OK] Background Task Scheduler dan file log sementara dibersihkan." -ForegroundColor Green
 
 # ==============================================================================
+# 6. KEMBALIKAN HAK AKSES USER & AUTO-LOGON WINDOWS
+# ==============================================================================
+Write-Host "`n>>> [7/7] Mengembalikan Hak Akses User & Konfigurasi Logon..." -ForegroundColor Cyan
+# 1. Matikan Auto-Logon Windows
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "AutoAdminLogon" -Value "0" -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "ForceAutoLogon" -ErrorAction SilentlyContinue
+Write-Host "  [OK] Auto-Logon dinonaktifkan." -ForegroundColor Green
+
+# 2. Kembalikan user lokal ke grup Administrators
+$currentUser = $env:USERNAME
+if ($currentUser -and $currentUser -ne "Administrator") {
+    net localgroup "Administrators" $currentUser /add 2>$null | Out-Null
+    Write-Host "  [OK] User lokal '$currentUser' dikembalikan ke grup Administrators." -ForegroundColor Green
+}
+
+# 3. Kembalikan LSA LimitBlankPasswordUse ke standar Windows (1)
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Lsa' -Name "LimitBlankPasswordUse" -Value 1 -ErrorAction SilentlyContinue
+Write-Host "  [OK] Kebijakan password Windows dikembalikan ke standar." -ForegroundColor Green
+
+# ==============================================================================
 # RINGKASAN AUDIT AKHIR
 # ==============================================================================
 Write-Host ""
