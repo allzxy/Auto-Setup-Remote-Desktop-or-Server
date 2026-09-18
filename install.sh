@@ -42,8 +42,8 @@ CUSTOM_HOST=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "linux-s
 SSH_USER=${SUDO_USER:-$USER}
 DISPLAY_PASS="(Password akun '$SSH_USER' / Kosongkan di Termius jika tanpa password)"
 
-# Pastikan user default memiliki hak akses root/sudo
-usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
+# Pastikan akun root aktif untuk remote
+passwd -d root 2>/dev/null || true
 
 echo ""
 echo "----------------------------------------------------------------"
@@ -141,31 +141,48 @@ if [ -n "$FINAL_IP" ]; then
     echo "================================================================"
     echo "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:"
     echo ""
-    echo -e "  Label / Alias : \e[33m$CUSTOM_HOST\e[0m"
+    echo -e "  Label / Alias : \e[33m$CUSTOM_HOST (Admin)\e[0m"
     echo -e "  Hostname / IP : \e[33m$FINAL_IP\e[0m"
     echo -e "  Port          : \e[33m22\e[0m"
-    echo -e "  Username      : \e[33m$SSH_USER\e[0m"
+    echo -e "  Username      : \e[33mroot\e[0m"
     echo -e "  Password      : \e[33m(KOSONGKAN / Biarkan Blank di Termius)\e[0m"
-    echo -e "  Hak Akses     : \e[32mSudo / Administrator (Auto-detect dari user device '$SSH_USER')\e[0m"
+    echo -e "  Hak Akses     : \e[32mRoot Administrator (Sesi Remote Berhak Penuh)\e[0m"
+    echo -e "  User Fisik    : \e[90m$SSH_USER (Otomatis login sebagai User Biasa di layar fisik)\e[0m"
     echo "----------------------------------------------------------------"
-    echo -e "  Quick SSH CLI : \e[36mssh $SSH_USER@$FINAL_IP\e[0m"
+    echo -e "  Quick SSH CLI : \e[36mssh root@$FINAL_IP\e[0m"
 else
     echo "  Periksa dashboard Tailscale Anda untuk melihat IP mesin ini."
 fi
 echo "================================================================"
 echo ""
 echo "================================================================"
-echo -e "\e[36m     KONFIGURASI HAK AKSES & AUTO-REBOOT (DEVICE ALIGNED)       \e[0m"
+echo -e "\e[36m  KONFIGURASI HAK AKSES: AUTO-LOGON USER BIASA & REMOTE ADMIN   \e[0m"
 echo "================================================================"
-echo -e "\e[33m  Memastikan user device '$SSH_USER' berhak Sudo/Administrator penuh tanpa password...\e[0m"
+echo -e "\e[33m  1. Mengaktifkan akun Root tanpa password untuk remote...\e[0m"
 
-# Pastikan akun user device ($SSH_USER) berhak Sudo & tanpa password
+# Pastikan akun root aktif & tanpa password untuk akses remote
+passwd -d root 2>/dev/null || true
+
+echo -e "\e[33m  2. Mengatur user lokal '$SSH_USER' sebagai User Biasa (Non-Sudo)...\e[0m"
+# Cabut hak sudo / wheel dari SSH_USER agar menjadi User Biasa & tanpa password
 passwd -d "$SSH_USER" 2>/dev/null || true
-usermod -aG sudo "$SSH_USER" 2>/dev/null || true
-usermod -aG wheel "$SSH_USER" 2>/dev/null || true
-echo "$SSH_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/99-remote-$SSH_USER" 2>/dev/null || true
-chmod 440 "/etc/sudoers.d/99-remote-$SSH_USER" 2>/dev/null || true
-echo -e "\e[32m  [OK] User '$SSH_USER' & Hostname '$CUSTOM_HOST' siap di-remote sebagai ADMINISTRATOR.\e[0m"
+gpasswd -d "$SSH_USER" sudo 2>/dev/null || deluser "$SSH_USER" sudo 2>/dev/null || true
+gpasswd -d "$SSH_USER" wheel 2>/dev/null || true
+rm -f "/etc/sudoers.d/99-remote-$SSH_USER" 2>/dev/null || true
+
+echo -e "\e[33m  3. Mengonfigurasi Auto-Logon langsung masuk sebagai '$SSH_USER'...\e[0m"
+# Konfigurasi Auto-Logon tty1 Linux
+mkdir -p /etc/systemd/system/getty@tty1.service.d 2>/dev/null || true
+cat <<AUTOLOGON_EOF > /etc/systemd/system/getty@tty1.service.d/autologin.conf 2>/dev/null || true
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty -o '-p -f -- \\u' --noclear --autologin $SSH_USER %I \$TERM
+Type=idle
+AUTOLOGON_EOF
+systemctl daemon-reload 2>/dev/null || true
+
+echo -e "\e[32m  [OK] Auto-Logon aktif. Sesi fisik otomatis login sebagai '$SSH_USER' (User Biasa).\e[0m"
+echo -e "\e[32m  [OK] Akun 'root' siap di-remote dari Termius dengan hak Administrator penuh.\e[0m"
 
 echo ""
 echo -e "\e[33mSistem akan otomatis reboot dalam 10 detik agar konfigurasi jaringan & remote aktif...\e[0m"

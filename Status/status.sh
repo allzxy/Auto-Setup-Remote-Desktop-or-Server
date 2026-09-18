@@ -86,6 +86,13 @@ else
     print_status "Anti-Sleep Mode" false "Masih Bisa Sleep / Suspend"
 fi
 
+# 6. Auto-Logon tty1 (Auto masuk ke User Biasa pas reboot)
+if [ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ]; then
+    print_status "Auto-Logon User Biasa" true "Aktif (Otomatis login ke console)"
+else
+    print_status "Auto-Logon User Biasa" false "Belum Diatur"
+fi
+
 echo ""
 echo "----------------------------------------------------------------"
 
@@ -99,14 +106,15 @@ if [ "$all_passed" = true ]; then
         echo "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:"
         echo ""
         TARGET_USER=${SUDO_USER:-$USER}
-        echo -e "  Label / Alias : \e[33m$TS_HOST\e[0m"
+        echo -e "  Label / Alias : \e[33m$TS_HOST (Admin)\e[0m"
         echo -e "  Hostname / IP : \e[33m$TS_IP\e[0m"
         echo -e "  Port          : \e[33m22\e[0m"
-        echo -e "  Username      : \e[33m$TARGET_USER\e[0m"
+        echo -e "  Username      : \e[33mroot\e[0m"
         echo -e "  Password      : \e[33m(KOSONGKAN / Biarkan Blank di Termius)\e[0m"
-        echo -e "  Hak Akses     : \e[32mSudo / Administrator (Auto-detect dari user device '$TARGET_USER')\e[0m"
+        echo -e "  Hak Akses     : \e[32mRoot Administrator (Sesi Remote Berhak Penuh)\e[0m"
+        echo -e "  User Fisik    : \e[90m$TARGET_USER (Otomatis login sebagai User Biasa di layar fisik)\e[0m"
         echo "----------------------------------------------------------------"
-        echo -e "  Quick SSH CLI : \e[36mssh $TARGET_USER@$TS_IP\e[0m"
+        echo -e "  Quick SSH CLI : \e[36mssh root@$TS_IP\e[0m"
         echo "================================================================"
     fi
 else

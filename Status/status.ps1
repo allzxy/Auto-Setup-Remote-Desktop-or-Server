@@ -134,6 +134,12 @@ $tsAcl = (Get-Acl "C:\Program Files\Tailscale" -ErrorAction SilentlyContinue).Ac
 $fileAclOk = [bool]$tsAcl
 Print-Status "Hardening File ACL" $fileAclOk $(if ($fileAclOk) { "Folder Tailscale & OpenSSH Terproteksi" } else { "Belum Terproteksi" })
 
+# 14. Cek Auto-Logon Windows (Auto masuk ke User Biasa pas reboot)
+$autoLogon = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "AutoAdminLogon" -ErrorAction SilentlyContinue).AutoAdminLogon
+$autoLogonUser = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "DefaultUserName" -ErrorAction SilentlyContinue).DefaultUserName
+$autoLogonOk = ($autoLogon -eq "1" -or $autoLogon -eq 1)
+Print-Status "Auto-Logon User Biasa" $autoLogonOk $(if ($autoLogonOk) { "Aktif (Otomatis masuk desktop sebagai '$autoLogonUser')" } else { "Non-aktif (Berhenti di Lock Screen)" })
+
 Write-Host "`n----------------------------------------------------------------" -ForegroundColor Gray
 
 if ($allPassed) {
@@ -145,16 +151,16 @@ if ($allPassed) {
         Write-Host "               DATA KONEKSI UNTUK APLIKASI TERMIUS              " -ForegroundColor Cyan
         Write-Host "================================================================" -ForegroundColor Cyan
         Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
-        $targetUser = $env:USERNAME
-        Write-Host "  Label / Alias : $tsHostname" -ForegroundColor Yellow
+        Write-Host "  Label / Alias : $tsHostname (Admin)" -ForegroundColor Yellow
         Write-Host "  Hostname / IP : $tsIp" -ForegroundColor Yellow
         Write-Host "  Port          : 22" -ForegroundColor Yellow
-        Write-Host "  Username      : $targetUser" -ForegroundColor Yellow
+        Write-Host "  Username      : Administrator" -ForegroundColor Yellow
         Write-Host "  Password      : (KOSONGKAN / Biarkan Blank di Termius)" -ForegroundColor Yellow
-        Write-Host "  Hak Akses     : Administrator (Auto-detect dari user device '$targetUser')" -ForegroundColor Green
+        Write-Host "  Hak Akses     : Full Administrator (Sesi Remote Berhak Penuh)" -ForegroundColor Green
+        Write-Host "  User Fisik    : $env:USERNAME (Otomatis login sebagai User Biasa di layar fisik)" -ForegroundColor Gray
         Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
-        Write-Host "  Quick SSH CLI : ssh $targetUser@$tsIp" -ForegroundColor Cyan
-        Write-Host "  Remote Desktop: RDP ke $tsIp (User: $targetUser, tanpa password)" -ForegroundColor Cyan
+        Write-Host "  Quick SSH CLI : ssh Administrator@$tsIp" -ForegroundColor Cyan
+        Write-Host "  Remote Desktop: RDP ke $tsIp (User: Administrator, tanpa password)" -ForegroundColor Cyan
         Write-Host "================================================================" -ForegroundColor Cyan
     }
 } else {

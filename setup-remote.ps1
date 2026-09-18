@@ -35,9 +35,10 @@ $customHost = $env:COMPUTERNAME.ToLower()
 $sshUser = $env:USERNAME
 $displayPass = "(Password login akun '$sshUser' / Kosongkan di Termius jika tanpa password)"
 
-# Pastikan default user masuk grup Administrators & Remote Desktop Users
-net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
-net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
+# Pastikan akun Administrator aktif untuk remote
+net user Administrator /active:yes 2>$null | Out-Null
+net localgroup "Administrators" "Administrator" /add 2>$null | Out-Null
+net localgroup "Remote Desktop Users" "Administrator" /add 2>$null | Out-Null
 
 Write-Host ""
 # ==============================================================================
@@ -449,30 +450,47 @@ if ($finalIp) {
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  Label / Alias : $customHost" -ForegroundColor Yellow
+    Write-Host "  Label / Alias : $customHost (Admin)" -ForegroundColor Yellow
     Write-Host "  Hostname / IP : $finalIp" -ForegroundColor Yellow
     Write-Host "  Port          : 22" -ForegroundColor Yellow
-    Write-Host "  Username      : $sshUser" -ForegroundColor Yellow
+    Write-Host "  Username      : Administrator" -ForegroundColor Yellow
     Write-Host "  Password      : (KOSONGKAN / Biarkan Blank di Termius)" -ForegroundColor Yellow
-    Write-Host "  Hak Akses     : Administrator (Auto-detect dari user device '$sshUser')" -ForegroundColor Green
+    Write-Host "  Hak Akses     : Full Administrator (Sesi Remote Berhak Penuh)" -ForegroundColor Green
+    Write-Host "  User Fisik    : $sshUser (Otomatis login sebagai User Biasa di layar fisik)" -ForegroundColor Gray
     Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
-    Write-Host "  Quick SSH CLI : ssh $sshUser@$finalIp" -ForegroundColor Cyan
-    Write-Host "  Remote Desktop: RDP ke $finalIp (User: $sshUser, tanpa password)" -ForegroundColor Cyan
+    Write-Host "  Quick SSH CLI : ssh Administrator@$finalIp" -ForegroundColor Cyan
+    Write-Host "  Remote Desktop: RDP ke $finalIp (User: Administrator, tanpa password)" -ForegroundColor Cyan
     Write-Host "================================================================" -ForegroundColor Cyan
 }
 
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "     KONFIGURASI HAK AKSES & AUTO-REBOOT (DEVICE ALIGNED)       " -ForegroundColor Cyan
+Write-Host "  KONFIGURASI HAK AKSES: AUTO-LOGON USER BIASA & REMOTE ADMIN   " -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  Memastikan user device '$sshUser' berhak Administrator penuh tanpa password..." -ForegroundColor Yellow
+Write-Host "  1. Mengaktifkan akun Administrator untuk akses remote..." -ForegroundColor Yellow
 
-# Pastikan akun user device ($sshUser) berhak Administrator & Remote Desktop, tanpa password
+# Pastikan akun Administrator aktif & tanpa password untuk akses remote
+net user Administrator /active:yes 2>$null | Out-Null
+net user Administrator "" 2>$null | Out-Null
+net user Administrator /passwordreq:no 2>$null | Out-Null
+net localgroup "Administrators" "Administrator" /add 2>$null | Out-Null
+net localgroup "Remote Desktop Users" "Administrator" /add 2>$null | Out-Null
+
+Write-Host "  2. Mengatur user lokal '$sshUser' sebagai User Biasa tanpa password..." -ForegroundColor Yellow
+# Atur akun lokal $sshUser sebagai User Biasa (Standard User) tanpa password
 net user $sshUser "" 2>$null | Out-Null
 net user $sshUser /passwordreq:no 2>$null | Out-Null
-net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
-net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
-Write-Host "  [OK] User '$sshUser' & Hostname '$customHost' siap di-remote sebagai ADMINISTRATOR." -ForegroundColor Green
+net localgroup "Users" $sshUser /add 2>$null | Out-Null
+net localgroup "Administrators" $sshUser /delete 2>$null | Out-Null
+
+Write-Host "  3. Mengonfigurasi Auto-Logon langsung masuk Desktop sebagai '$sshUser'..." -ForegroundColor Yellow
+# Konfigurasi Auto-Logon Windows agar pas reboot langsung masuk desktop sebagai User Biasa tanpa lock screen
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "AutoAdminLogon" -Value "1" -Force
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "DefaultUserName" -Value $sshUser -Force
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "DefaultPassword" -Value "" -Force
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "ForceAutoLogon" -Value "1" -Force
+Write-Host "  [OK] Auto-Logon aktif. Sesi fisik otomatis login sebagai '$sshUser' (User Biasa)." -ForegroundColor Green
+Write-Host "  [OK] Akun 'Administrator' siap di-remote dari Termius / RDP dengan hak penuh." -ForegroundColor Green
 
 Write-Host ""
 Write-Host "Sistem akan otomatis reboot dalam 10 detik agar konfigurasi jaringan & remote aktif..." -ForegroundColor Yellow

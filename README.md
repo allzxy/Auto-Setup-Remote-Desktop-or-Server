@@ -24,13 +24,13 @@ Tidak perlu download file atau git clone manual! Cukup copy-paste command ini ke
 ```powershell
 irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.ps1 | iex
 ```
-*(Otomatis mendeteksi Hostname & Username device target, support login Termius & RDP tanpa password, dan akses remote penuh sebagai Administrator).*
+*(Auto-Logon langsung masuk Desktop sebagai User Biasa pas reboot, akses remote Termius & RDP langsung dapet hak Administrator penuh tanpa password).*
 
 ### 🐧 Linux (Ubuntu / Debian / CentOS / Fedora / Arch):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.sh | bash
 ```
-*(Otomatis mendeteksi Hostname & Username device target, support login Termius tanpa password via PAM nullok, dan akses remote penuh Sudo).*
+*(Auto-Logon langsung masuk console sebagai User Biasa pas reboot, akses remote Termius SSH langsung dapet hak Root Administrator tanpa password).*
 
 ---
 
