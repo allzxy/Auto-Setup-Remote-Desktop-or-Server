@@ -87,6 +87,7 @@ echo -e "\e[32m  [OK] Sleep & Suspend dikembalikan ke fungsi normal.\e[0m"
 # 5. Kembalikan Autologin & Hak User Linux
 echo -e "\n\e[36m>>> [5/5] Mengembalikan Pengaturan Login & User...\e[0m"
 rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf 2>/dev/null || true
+rm -f /etc/sudoers.d/99-remote-* 2>/dev/null || true
 systemctl daemon-reload 2>/dev/null || true
 
 LOCAL_USER=${SUDO_USER:-$USER}
@@ -94,7 +95,8 @@ if [ -n "$LOCAL_USER" ] && [ "$LOCAL_USER" != "root" ]; then
     usermod -aG sudo "$LOCAL_USER" 2>/dev/null || usermod -aG wheel "$LOCAL_USER" 2>/dev/null || true
     echo -e "\e[32m  [OK] User '$LOCAL_USER' dikembalikan ke grup sudo/wheel.\e[0m"
 fi
-echo -e "\e[32m  [OK] Auto-Logon console tty1 dinonaktifkan.\e[0m"
+passwd -l root 2>/dev/null || true
+echo -e "\e[32m  [OK] Auto-Logon tty1 dinonaktifkan & password root dikunci kembali.\e[0m"
 
 echo ""
 echo "================================================================"

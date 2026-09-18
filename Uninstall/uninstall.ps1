@@ -273,18 +273,35 @@ Write-Host "`n>>> [7/7] Mengembalikan Hak Akses User & Konfigurasi Logon..." -Fo
 # 1. Matikan Auto-Logon Windows
 Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "AutoAdminLogon" -Value "0" -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "ForceAutoLogon" -ErrorAction SilentlyContinue
-Write-Host "  [OK] Auto-Logon dinonaktifkan." -ForegroundColor Green
+Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "DefaultPassword" -ErrorAction SilentlyContinue
+Write-Host "  [OK] Auto-Logon dinonaktifkan & kredensial logon dibersihkan." -ForegroundColor Green
 
 # 2. Kembalikan user lokal ke grup Administrators
-$currentUser = $env:USERNAME
-if ($currentUser -and $currentUser -ne "Administrator") {
-    net localgroup "Administrators" $currentUser /add 2>$null | Out-Null
-    Write-Host "  [OK] User lokal '$currentUser' dikembalikan ke grup Administrators." -ForegroundColor Green
+$targetUser = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name "DefaultUserName" -ErrorAction SilentlyContinue).DefaultUserName
+if (!$targetUser -or $targetUser -eq "Administrator") {
+    $explorerUser = (Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'" -ErrorAction SilentlyContinue | Invoke-CimMethod -MethodName GetOwner -ErrorAction SilentlyContinue | Select-Object -ExpandProperty User -First 1)
+    if ($explorerUser) { $targetUser = $explorerUser } else { $targetUser = $env:USERNAME }
+}
+
+if ($targetUser -and $targetUser -ne "Administrator") {
+    net localgroup "Administrators" $targetUser /add 2>$null | Out-Null
+    Write-Host "  [OK] User lokal '$targetUser' dikembalikan ke grup Administrators." -ForegroundColor Green
 }
 
 # 3. Kembalikan LSA LimitBlankPasswordUse ke standar Windows (1)
 Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Lsa' -Name "LimitBlankPasswordUse" -Value 1 -ErrorAction SilentlyContinue
 Write-Host "  [OK] Kebijakan password Windows dikembalikan ke standar." -ForegroundColor Green
+
+# 4. Kembalikan NLA RDP ke standar Windows (1)
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1 -ErrorAction SilentlyContinue
+
+# 5. Nonaktifkan kembali akun Administrator bawaan demi keamanan sistem
+$admins = net localgroup "Administrators" 2>$null
+if ($admins -match $targetUser -and $targetUser -ne "Administrator") {
+    net user Administrator /active:no 2>$null | Out-Null
+    net localgroup "Remote Desktop Users" "Administrator" /delete 2>$null | Out-Null
+    Write-Host "  [OK] Akun bawaan 'Administrator' dinonaktifkan kembali demi keamanan sistem." -ForegroundColor Green
+}
 
 # ==============================================================================
 # RINGKASAN AUDIT AKHIR

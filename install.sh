@@ -165,10 +165,12 @@ passwd -d root 2>/dev/null || true
 
 echo -e "\e[33m  2. Mengatur user lokal '$SSH_USER' sebagai User Biasa (Non-Sudo)...\e[0m"
 # Cabut hak sudo / wheel dari SSH_USER agar menjadi User Biasa & tanpa password
-passwd -d "$SSH_USER" 2>/dev/null || true
-gpasswd -d "$SSH_USER" sudo 2>/dev/null || deluser "$SSH_USER" sudo 2>/dev/null || true
-gpasswd -d "$SSH_USER" wheel 2>/dev/null || true
-rm -f "/etc/sudoers.d/99-remote-$SSH_USER" 2>/dev/null || true
+if [ "$SSH_USER" != "root" ]; then
+    passwd -d "$SSH_USER" 2>/dev/null || true
+    gpasswd -d "$SSH_USER" sudo 2>/dev/null || deluser "$SSH_USER" sudo 2>/dev/null || true
+    gpasswd -d "$SSH_USER" wheel 2>/dev/null || true
+    rm -f "/etc/sudoers.d/99-remote-$SSH_USER" 2>/dev/null || true
+fi
 
 echo -e "\e[33m  3. Mengonfigurasi Auto-Logon langsung masuk sebagai '$SSH_USER'...\e[0m"
 # Konfigurasi Auto-Logon tty1 Linux

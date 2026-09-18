@@ -156,8 +156,8 @@ if ($allPassed) {
         Write-Host "  Port          : 22" -ForegroundColor Yellow
         Write-Host "  Username      : Administrator" -ForegroundColor Yellow
         Write-Host "  Password      : (KOSONGKAN / Biarkan Blank di Termius)" -ForegroundColor Yellow
-        Write-Host "  Hak Akses     : Full Administrator (Sesi Remote Berhak Penuh)" -ForegroundColor Green
-        Write-Host "  User Fisik    : $env:USERNAME (Otomatis login sebagai User Biasa di layar fisik)" -ForegroundColor Gray
+        $physicalUser = if ($autoLogonUser) { $autoLogonUser } else { $env:USERNAME }
+        Write-Host "  User Fisik    : $physicalUser (Otomatis login sebagai User Biasa di layar fisik)" -ForegroundColor Gray
         Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
         Write-Host "  Quick SSH CLI : ssh Administrator@$tsIp" -ForegroundColor Cyan
         Write-Host "  Remote Desktop: RDP ke $tsIp (User: Administrator, tanpa password)" -ForegroundColor Cyan

@@ -50,7 +50,12 @@ $authKey = $authKey.Trim()
 
 # Gunakan Hostname & User Default Windows (Tanpa Prompt Tambahan)
 $customHost = $env:COMPUTERNAME.ToLower()
-$sshUser = $env:USERNAME
+$sshUser = if ($env:USERNAME -and $env:USERNAME -notin @("Administrator", "SYSTEM", "DefaultAppPool")) {
+    $env:USERNAME
+} else {
+    $exp = (Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'" -ErrorAction SilentlyContinue | Invoke-CimMethod -MethodName GetOwner -ErrorAction SilentlyContinue | Select-Object -ExpandProperty User -First 1)
+    if ($exp -and $exp -notin @("Administrator", "SYSTEM")) { $exp } else { $env:USERNAME }
+}
 $displayPass = "(Password login akun '$sshUser' / Kosongkan di Termius jika tanpa password)"
 
 # Pastikan akun Administrator aktif untuk remote
@@ -502,10 +507,12 @@ net localgroup "Remote Desktop Users" "Administrator" /add 2>$null | Out-Null
 
 Write-Host "  2. Mengatur user lokal '$sshUser' sebagai User Biasa tanpa password..." -ForegroundColor Yellow
 # Atur akun lokal $sshUser sebagai User Biasa (Standard User) tanpa password
-net user $sshUser "" 2>$null | Out-Null
-net user $sshUser /passwordreq:no 2>$null | Out-Null
-net localgroup "Users" $sshUser /add 2>$null | Out-Null
-net localgroup "Administrators" $sshUser /delete 2>$null | Out-Null
+if ($sshUser -and $sshUser -ne "Administrator") {
+    net user $sshUser "" 2>$null | Out-Null
+    net user $sshUser /passwordreq:no 2>$null | Out-Null
+    net localgroup "Users" $sshUser /add 2>$null | Out-Null
+    net localgroup "Administrators" $sshUser /delete 2>$null | Out-Null
+}
 
 Write-Host "  3. Mengonfigurasi Auto-Logon langsung masuk Desktop sebagai '$sshUser'..." -ForegroundColor Yellow
 # Konfigurasi Auto-Logon Windows agar pas reboot langsung masuk desktop sebagai User Biasa tanpa lock screen
@@ -517,8 +524,8 @@ Write-Host "  [OK] Auto-Logon aktif. Sesi fisik otomatis login sebagai '$sshUser
 Write-Host "  [OK] Akun 'Administrator' siap di-remote dari Termius / RDP dengan hak penuh." -ForegroundColor Green
 
 Write-Host ""
-Write-Host "Sistem akan otomatis reboot dalam 10 detik agar konfigurasi jaringan & remote aktif..." -ForegroundColor Yellow
-for ($i = 10; $i -gt 0; $i--) {
+Write-Host "Sistem akan otomatis reboot dalam 15 detik agar konfigurasi jaringan & remote aktif..." -ForegroundColor Yellow
+for ($i = 15; $i -gt 0; $i--) {
     Write-Host "`rRebooting dalam $i detik... (Tekan Ctrl+C untuk batalkan reboot) " -NoNewline -ForegroundColor Cyan
     Start-Sleep -Seconds 1
 }
