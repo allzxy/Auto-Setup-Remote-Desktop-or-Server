@@ -145,15 +145,16 @@ if ($allPassed) {
         Write-Host "               DATA KONEKSI UNTUK APLIKASI TERMIUS              " -ForegroundColor Cyan
         Write-Host "================================================================" -ForegroundColor Cyan
         Write-Host "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:" -ForegroundColor White
-        Write-Host ""
+        $targetUser = $env:USERNAME
         Write-Host "  Label / Alias : $tsHostname" -ForegroundColor Yellow
         Write-Host "  Hostname / IP : $tsIp" -ForegroundColor Yellow
         Write-Host "  Port          : 22" -ForegroundColor Yellow
-        Write-Host "  Username      : $env:USERNAME" -ForegroundColor Yellow
-        Write-Host "  Password      : (Password login Windows akun Anda)" -ForegroundColor Yellow
+        Write-Host "  Username      : $targetUser" -ForegroundColor Yellow
+        Write-Host "  Password      : (KOSONGKAN / Biarkan Blank di Termius)" -ForegroundColor Yellow
+        Write-Host "  Hak Akses     : Administrator (Auto-detect dari user device '$targetUser')" -ForegroundColor Green
         Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
-        Write-Host "  Quick SSH CLI : ssh $env:USERNAME@$tsIp" -ForegroundColor Cyan
-        Write-Host "  Remote Desktop: Buka RDP -> Hubungkan ke $tsIp" -ForegroundColor Cyan
+        Write-Host "  Quick SSH CLI : ssh $targetUser@$tsIp" -ForegroundColor Cyan
+        Write-Host "  Remote Desktop: RDP ke $tsIp (User: $targetUser, tanpa password)" -ForegroundColor Cyan
         Write-Host "================================================================" -ForegroundColor Cyan
     }
 } else {

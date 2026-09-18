@@ -98,13 +98,15 @@ if [ "$all_passed" = true ]; then
         echo "================================================================"
         echo "  Buka Termius -> Klik '+ New Host' -> Masukkan data ini:"
         echo ""
+        TARGET_USER=${SUDO_USER:-$USER}
         echo -e "  Label / Alias : \e[33m$TS_HOST\e[0m"
         echo -e "  Hostname / IP : \e[33m$TS_IP\e[0m"
         echo -e "  Port          : \e[33m22\e[0m"
-        echo -e "  Username      : \e[33m$USER\e[0m"
-        echo -e "  Password      : \e[33m(Password akun $USER Anda)\e[0m"
+        echo -e "  Username      : \e[33m$TARGET_USER\e[0m"
+        echo -e "  Password      : \e[33m(KOSONGKAN / Biarkan Blank di Termius)\e[0m"
+        echo -e "  Hak Akses     : \e[32mSudo / Administrator (Auto-detect dari user device '$TARGET_USER')\e[0m"
         echo "----------------------------------------------------------------"
-        echo -e "  Quick SSH CLI : \e[36mssh $USER@$TS_IP\e[0m"
+        echo -e "  Quick SSH CLI : \e[36mssh $TARGET_USER@$TS_IP\e[0m"
         echo "================================================================"
     fi
 else

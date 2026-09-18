@@ -51,7 +51,7 @@ $authKey = $authKey.Trim()
 # Gunakan Hostname & User Default Windows (Tanpa Prompt Tambahan)
 $customHost = $env:COMPUTERNAME.ToLower()
 $sshUser = $env:USERNAME
-$displayPass = "(Password login akun '$sshUser')"
+$displayPass = "(Password login akun '$sshUser' / Kosongkan di Termius jika tanpa password)"
 
 # Pastikan default user masuk grup Administrators & Remote Desktop Users
 net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
@@ -134,17 +134,13 @@ try {
     $rdpVal = (Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -ErrorAction SilentlyContinue).fDenyTSConnections
     $fwRdp = Get-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq "True" }
 
-    if ($rdpVal -eq 0 -and $fwRdp) {
-        Write-Host "  [CHECK] Remote Desktop (RDP) sudah aktif & port 3389 terbuka." -ForegroundColor Green
-    } else {
-        Write-Host "  [CHECK] Mengaktifkan RDP & membuka port 3389 di firewall..." -ForegroundColor Yellow
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1 -Force
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "MinEncryptionLevel" -Value 3 -Force
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop" | Out-Null
-        Set-NetFirewallRule -DisplayGroup "Remote Desktop" -Profile Any -ErrorAction SilentlyContinue | Out-Null
-        Write-Host "  [OK] Remote Desktop Aktif & Port 3389 Terbuka." -ForegroundColor Green
-    }
+    # Pastikan RDP aktif, NLA dinonaktifkan (UserAuthentication = 0 agar akun tanpa password bisa login), dan port 3389 terbuka
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "MinEncryptionLevel" -Value 2 -Force
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue | Out-Null
+    Set-NetFirewallRule -DisplayGroup "Remote Desktop" -Profile Any -ErrorAction SilentlyContinue | Out-Null
+    Write-Host "  [OK] Remote Desktop Aktif, NLA Dinonaktifkan (Support Blank Password) & Port 3389 Terbuka." -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] Gagal konfigurasi RDP: $_" -ForegroundColor Red
 }
@@ -257,11 +253,14 @@ try {
         $sshdConfigFile = "$sshData\sshd_config"
         if (Test-Path $sshdConfigFile) {
             $cfg = Get-Content $sshdConfigFile -Raw
-            # Pastikan PermitEmptyPasswords & PasswordAuthentication aktif agar login tanpa password bisa tembus
+            # Pastikan PermitEmptyPasswords, PasswordAuthentication & KbdInteractiveAuthentication aktif agar login Termius tanpa password bisa tembus
             $cfg = $cfg -replace "(?m)^\s*#?\s*PermitEmptyPasswords\s+.*$", "PermitEmptyPasswords yes"
             $cfg = $cfg -replace "(?m)^\s*#?\s*PasswordAuthentication\s+.*$", "PasswordAuthentication yes"
+            $cfg = $cfg -replace "(?m)^\s*#?\s*KbdInteractiveAuthentication\s+.*$", "KbdInteractiveAuthentication yes"
             if ($cfg -notmatch "PermitEmptyPasswords") { $cfg += "`nPermitEmptyPasswords yes" }
             if ($cfg -notmatch "PasswordAuthentication") { $cfg += "`nPasswordAuthentication yes" }
+            if ($cfg -notmatch "KbdInteractiveAuthentication") { $cfg += "`nKbdInteractiveAuthentication yes" }
+            if ($cfg -notmatch "PubkeyAuthentication") { $cfg += "`nPubkeyAuthentication yes" }
             if ($cfg -notmatch "UseDNS") { $cfg += "`nUseDNS no" }
             if ($cfg -notmatch "MaxAuthTries") { $cfg += "`n# Security & Performance Tuning`nMaxAuthTries 4`nLoginGraceTime 30`nClientAliveInterval 300`nClientAliveCountMax 2" }
             Set-Content -Path $sshdConfigFile -Value $cfg -Force
@@ -477,18 +476,33 @@ if ($finalIp) {
     Write-Host "  Hostname / IP : $finalIp" -ForegroundColor Yellow
     Write-Host "  Port          : 22" -ForegroundColor Yellow
     Write-Host "  Username      : $sshUser" -ForegroundColor Yellow
-    Write-Host "  Password      : $displayPass" -ForegroundColor Yellow
+    Write-Host "  Password      : (KOSONGKAN / Biarkan Blank di Termius)" -ForegroundColor Yellow
+    Write-Host "  Hak Akses     : Administrator (Auto-detect dari user device '$sshUser')" -ForegroundColor Green
     Write-Host "----------------------------------------------------------------" -ForegroundColor Gray
     Write-Host "  Quick SSH CLI : ssh $sshUser@$finalIp" -ForegroundColor Cyan
-    Write-Host "  Remote Desktop: Buka RDP -> Sambungkan ke $finalIp" -ForegroundColor Cyan
+    Write-Host "  Remote Desktop: RDP ke $finalIp (User: $sshUser, tanpa password)" -ForegroundColor Cyan
 } else {
     Write-Host "  [INFO] Periksa dashboard Tailscale Anda untuk melihat IP mesin ini." -ForegroundColor Yellow
 }
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
-try {
-    if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
-        Write-Host "Jendela ini tidak akan ditutup otomatis agar Anda bisa menyalin data di atas." -ForegroundColor Gray
-        Read-Host "Tekan tombol ENTER untuk keluar..."
-    }
-} catch {}
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host "     KONFIGURASI HAK AKSES & AUTO-REBOOT (DEVICE ALIGNED)       " -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host "  Memastikan user device '$sshUser' berhak Administrator penuh tanpa password..." -ForegroundColor Yellow
+
+# Pastikan akun user device ($sshUser) berhak Administrator & Remote Desktop, tanpa password
+net user $sshUser "" 2>$null | Out-Null
+net user $sshUser /passwordreq:no 2>$null | Out-Null
+net localgroup "Administrators" $sshUser /add 2>$null | Out-Null
+net localgroup "Remote Desktop Users" $sshUser /add 2>$null | Out-Null
+Write-Host "  [OK] User '$sshUser' & Hostname '$customHost' siap di-remote sebagai ADMINISTRATOR." -ForegroundColor Green
+
+Write-Host ""
+Write-Host "Sistem akan otomatis reboot dalam 10 detik agar konfigurasi jaringan & remote aktif..." -ForegroundColor Yellow
+for ($i = 10; $i -gt 0; $i--) {
+    Write-Host "`rRebooting dalam $i detik... (Tekan Ctrl+C untuk batalkan reboot) " -NoNewline -ForegroundColor Cyan
+    Start-Sleep -Seconds 1
+}
+Write-Host "`nMe-reboot sistem sekarang..." -ForegroundColor Green
+Restart-Computer -Force

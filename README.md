@@ -24,13 +24,13 @@ Tidak perlu download file atau git clone manual! Cukup copy-paste command ini ke
 ```powershell
 irm https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.ps1 | iex
 ```
-*(Terminal akan meminta persetujuan `[Y/N]`, Tailscale Auth Key, Custom Hostname mesin, dan Custom Username login Termius secara interaktif).*
+*(Otomatis mendeteksi Hostname & Username device target, support login Termius & RDP tanpa password, dan akses remote penuh sebagai Administrator).*
 
 ### 🐧 Linux (Ubuntu / Debian / CentOS / Fedora / Arch):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/allzxy/Auto-Setup-Remote-Desktop-or-Server/main/install.sh | bash
 ```
-*(Mendukung input Custom Hostname & Username untuk Termius secara interaktif).*
+*(Otomatis mendeteksi Hostname & Username device target, support login Termius tanpa password via PAM nullok, dan akses remote penuh Sudo).*
 
 ---
 

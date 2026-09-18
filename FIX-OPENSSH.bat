@@ -42,8 +42,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
   "    $c = Get-Content $cfg -Raw;" ^
   "    $c = $c -replace '(?m)^\s*#?\s*PermitEmptyPasswords\s+.*$', 'PermitEmptyPasswords yes';" ^
   "    $c = $c -replace '(?m)^\s*#?\s*PasswordAuthentication\s+.*$', 'PasswordAuthentication yes';" ^
+  "    $c = $c -replace '(?m)^\s*#?\s*KbdInteractiveAuthentication\s+.*$', 'KbdInteractiveAuthentication yes';" ^
   "    if ($c -notmatch 'PermitEmptyPasswords') { $c += \"`nPermitEmptyPasswords yes\" };" ^
   "    if ($c -notmatch 'PasswordAuthentication') { $c += \"`nPasswordAuthentication yes\" };" ^
+  "    if ($c -notmatch 'KbdInteractiveAuthentication') { $c += \"`nKbdInteractiveAuthentication yes\" };" ^
+  "    if ($c -notmatch 'PubkeyAuthentication') { $c += \"`nPubkeyAuthentication yes\" };" ^
   "    if ($c -notmatch 'UseDNS') { $c += \"`nUseDNS no`n\" };" ^
   "    Set-Content -Path $cfg -Value $c -Force;" ^
   "    icacls.exe $cfg /inheritance:r /grant:r 'SYSTEM:F' 'BUILTIN\Administrators:F' /c /q | Out-Null;" ^

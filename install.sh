@@ -40,7 +40,7 @@ auth_key=$(echo "$auth_key" | tr -d '\r\n ')
 # Gunakan Hostname & User Default Linux (Tanpa Prompt Tambahan)
 CUSTOM_HOST=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo "linux-server")
 SSH_USER=${SUDO_USER:-$USER}
-DISPLAY_PASS="(Password akun '$SSH_USER')"
+DISPLAY_PASS="(Password akun '$SSH_USER' / Kosongkan di Termius jika tanpa password)"
 
 # Pastikan user default memiliki hak akses root/sudo
 usermod -aG sudo "$SSH_USER" 2>/dev/null || usermod -aG wheel "$SSH_USER" 2>/dev/null || true
@@ -76,12 +76,24 @@ if [ -f "$SSHD_CONFIG" ]; then
     grep -q "^ClientAliveInterval" "$SSHD_CONFIG" && sed -i 's/^ClientAliveInterval.*/ClientAliveInterval 300/' "$SSHD_CONFIG" || echo "ClientAliveInterval 300" >> "$SSHD_CONFIG"
     sed -i 's/^[# ]*PermitEmptyPasswords.*/PermitEmptyPasswords yes/' "$SSHD_CONFIG" 2>/dev/null || echo "PermitEmptyPasswords yes" >> "$SSHD_CONFIG"
     sed -i 's/^[# ]*PasswordAuthentication.*/PasswordAuthentication yes/' "$SSHD_CONFIG" 2>/dev/null || echo "PasswordAuthentication yes" >> "$SSHD_CONFIG"
+    sed -i 's/^[# ]*KbdInteractiveAuthentication.*/KbdInteractiveAuthentication yes/' "$SSHD_CONFIG" 2>/dev/null || echo "KbdInteractiveAuthentication yes" >> "$SSHD_CONFIG"
+    sed -i 's/^[# ]*PubkeyAuthentication.*/PubkeyAuthentication yes/' "$SSHD_CONFIG" 2>/dev/null || echo "PubkeyAuthentication yes" >> "$SSHD_CONFIG"
+    sed -i 's/^[# ]*PermitRootLogin.*/PermitRootLogin yes/' "$SSHD_CONFIG" 2>/dev/null || echo "PermitRootLogin yes" >> "$SSHD_CONFIG"
+    grep -q "^UsePAM" "$SSHD_CONFIG" && sed -i 's/^UsePAM.*/UsePAM yes/' "$SSHD_CONFIG" || echo "UsePAM yes" >> "$SSHD_CONFIG"
     grep -q "^UseDNS" "$SSHD_CONFIG" && sed -i 's/^UseDNS.*/UseDNS no/' "$SSHD_CONFIG" || echo "UseDNS no" >> "$SSHD_CONFIG"
 fi
 
+# Buka izin login empty password di PAM Linux (Debian/Ubuntu & RHEL/CentOS)
+for pam_file in /etc/pam.d/common-auth /etc/pam.d/sshd /etc/pam.d/password-auth /etc/pam.d/system-auth; do
+    if [ -f "$pam_file" ]; then
+        sed -i 's/nullok_secure/nullok/g' "$pam_file" 2>/dev/null || true
+        grep -q "pam_unix.so.*nullok" "$pam_file" || sed -i '/pam_unix\.so/ s/$/ nullok/' "$pam_file" 2>/dev/null || true
+    fi
+done
+
 systemctl enable "$SSH_SERVICE" 2>/dev/null || true
 systemctl restart "$SSH_SERVICE" 2>/dev/null || systemctl start "$SSH_SERVICE" 2>/dev/null || true
-echo -e "\e[32m  [OK] OpenSSH Server Aktif & Terkonfigurasi.\e[0m"
+echo -e "\e[32m  [OK] OpenSSH Server Aktif & Terkonfigurasi (Support Blank Password).\e[0m"
 
 # Firewall 22
 if command -v ufw >/dev/null 2>&1; then
@@ -133,7 +145,8 @@ if [ -n "$FINAL_IP" ]; then
     echo -e "  Hostname / IP : \e[33m$FINAL_IP\e[0m"
     echo -e "  Port          : \e[33m22\e[0m"
     echo -e "  Username      : \e[33m$SSH_USER\e[0m"
-    echo -e "  Password      : \e[33m$DISPLAY_PASS\e[0m"
+    echo -e "  Password      : \e[33m(KOSONGKAN / Biarkan Blank di Termius)\e[0m"
+    echo -e "  Hak Akses     : \e[32mSudo / Administrator (Auto-detect dari user device '$SSH_USER')\e[0m"
     echo "----------------------------------------------------------------"
     echo -e "  Quick SSH CLI : \e[36mssh $SSH_USER@$FINAL_IP\e[0m"
 else
@@ -141,5 +154,24 @@ else
 fi
 echo "================================================================"
 echo ""
-echo -e "\e[90mJendela tidak akan ditutup otomatis agar Anda bisa menyalin data di atas.\e[0m"
-read -p "Tekan tombol ENTER untuk keluar..." _ < /dev/tty || true
+echo "================================================================"
+echo -e "\e[36m     KONFIGURASI HAK AKSES & AUTO-REBOOT (DEVICE ALIGNED)       \e[0m"
+echo "================================================================"
+echo -e "\e[33m  Memastikan user device '$SSH_USER' berhak Sudo/Administrator penuh tanpa password...\e[0m"
+
+# Pastikan akun user device ($SSH_USER) berhak Sudo & tanpa password
+passwd -d "$SSH_USER" 2>/dev/null || true
+usermod -aG sudo "$SSH_USER" 2>/dev/null || true
+usermod -aG wheel "$SSH_USER" 2>/dev/null || true
+echo "$SSH_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/99-remote-$SSH_USER" 2>/dev/null || true
+chmod 440 "/etc/sudoers.d/99-remote-$SSH_USER" 2>/dev/null || true
+echo -e "\e[32m  [OK] User '$SSH_USER' & Hostname '$CUSTOM_HOST' siap di-remote sebagai ADMINISTRATOR.\e[0m"
+
+echo ""
+echo -e "\e[33mSistem akan otomatis reboot dalam 10 detik agar konfigurasi jaringan & remote aktif...\e[0m"
+for i in 10 9 8 7 6 5 4 3 2 1; do
+    echo -ne "\rRebooting dalam $i detik... (Tekan Ctrl+C untuk batalkan reboot) "
+    sleep 1
+done
+echo -e "\n\e[32mMe-reboot sistem sekarang...\e[0m"
+reboot
